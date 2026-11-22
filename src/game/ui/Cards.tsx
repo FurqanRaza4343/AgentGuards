@@ -81,6 +81,8 @@ export function IntroCard({
   onAnalyse?: () => void;
 }) {
   const unit = unitOf(scenarios[0]);
+  const source = scenarios[0]?.source ?? 'repo';
+  const thing = source === 'site' ? 'website' : source === 'profile' ? 'profile' : 'repository';
   const [sure, setSure] = useState(false);
   const next = Math.max(0, scenarios.findIndex((s) => !progress.levels[s.id]));
   const nextIdx = scenarios.every((s) => progress.levels[s.id]) ? 0 : next;
@@ -88,10 +90,14 @@ export function IntroCard({
   const allDone = scenarios.every((s) => progress.levels[s.id]);
   return (
     <Card label="AgentGuard · Inspector briefing" labelledBy="g-intro">
-      <h2 id="g-intro">{unit === 'mission' ? 'Your repository, as a game.' : 'You are the human in the loop.'}</h2>
+      <h2 id="g-intro">{unit === 'mission' ? `Your ${thing}, as a game.` : 'You are the human in the loop.'}</h2>
       <p id="g-intro-body">
         {unit === 'mission'
-          ? 'Each mission is built from real lines of your repository. Your coding agent wants to merge a change: inspect the lines, find the red flags, and decide. Block everything and nothing gets done, so ask for the specific fix.'
+          ? source === 'site'
+            ? 'Each mission is built from what the scan really found on your website. Your web agent wants to publish a change: inspect it, find the red flags, and decide. Things your site already does well are in the game too, so do not block them. Ask for the specific fix.'
+            : source === 'profile'
+              ? 'Each mission is built from what the review really found in your profile. Your profile agent wants to post an update: inspect it, find the red flags, and decide. Things that already work are in the game too, so do not block them. Ask for the specific fix.'
+              : 'Each mission is built from real lines of your repository. Your coding agent wants to merge a change: inspect the lines, find the red flags, and decide. Block everything and nothing gets done, so ask for the specific fix.'
           : 'AI agents read email, query databases and talk to each other. They are useful, and they can be tricked. Inspect what an agent is about to do, then decide. Block everything and nothing gets done, so find the safe way to get the work finished.'}
       </p>
       <div className="gactions">
@@ -103,7 +109,7 @@ export function IntroCard({
         </button>
         {onAnalyse && (
           <button className="gbtn" type="button" onClick={onAnalyse}>
-            {unit === 'mission' ? 'Scan another repository' : 'Make missions from my repo'}
+            {unit === 'mission' ? (source === 'site' ? 'Analyse another website' : source === 'profile' ? 'Review another profile' : 'Scan another repository') : 'Make missions from my repo, site or profile'}
           </button>
         )}
       </div>

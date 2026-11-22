@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { strToU8, zipSync } from 'fflate';
 import { chromium } from 'playwright-core';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -192,6 +193,19 @@ try {
   check((await page.locator('.lfind details[open] .lfix').count()) === 1, 'a finding opens to show what it means and how to fix it');
   await shot(page, 'assess-4-site-finding-open');
   await page.getByRole('button', { name: /Copy a summary/ }).click().catch(() => {});
+  // the same report becomes missions that are about a website: publish, not merge
+  const siteMissions = page.getByRole('button', { name: /Play \d+ missions?/ });
+  check((await siteMissions.count()) === 1, 'the website report offers missions built from what was found');
+  await siteMissions.click();
+  await page.waitForTimeout(1500);
+  check(/web agent/i.test(await page.textContent('body')) && /Analyse another website/.test(await page.textContent('body')), 'the missions speak about a website and not about a repository');
+  await page.getByRole('button', { name: /Begin (level|mission) 1/i }).first().click();
+  await page.getByRole('button', { name: /Start simulation/i }).first().click();
+  await page.waitForSelector('.dbar', { timeout: 30000 });
+  await page.waitForTimeout(1000);
+  const sm = await page.textContent('body');
+  check(/Approve and publish/.test(sm) && !/Approve and merge|pull request|commit/i.test(sm), 'the first website mission is worded for a website: "Approve and publish", no merge or commit');
+  await shot(page, 'assess-4b-site-mission-step');
   await ctx.close();
 
   // a site that is not there: a clear message, not a hang
@@ -225,6 +239,71 @@ try {
   check(/Kubernetes|kubernetes/.test(ptext), 'the search for job pages found a skill the profile lacks');
   check(queries.filter((q) => /Backend engineer/.test(q)).length >= 1 && !queries.some((q) => /Ayesha|Raza/i.test(q ?? '')), 'only the role went to the search server, never the name');
   check((await page.locator('.lq li').count()) >= 3, `Nova asked ${await page.locator('.lq li').count()} questions about the profile`);
+  await ctx.close();
+
+  // ================================================================ a profile, from the member's own LinkedIn data export
+  // The ZIP is built here the way LinkedIn builds one: CSV files, and others that the reader must never open (messages).
+  const iso = (monthsAgo, dayOfMonth) => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - monthsAgo, dayOfMonth)).toISOString().slice(0, 10);
+  const zip = zipSync({
+    'Profile.csv': strToU8('First Name,Last Name,Maiden Name,Address,Birth Date,Headline,Summary,Industry,Zip Code,Geo Location,Twitter Handles,Websites,Instant Messengers\nBilal,Khan,,"House 12, Street 4, Lahore",Jan 1 1999,Backend engineer,"I build APIs in Python and cut report time by 40 percent for a team of 6.",Software,54000,"Lahore, Pakistan",,,'),
+    'Positions.csv': strToU8('Company Name,Title,Description,Location,Started On,Finished On\nExample Tech Ltd,Backend Engineer,Built and ran the payments API. Reduced latency by 35 percent.,Lahore,Jan 2023,'),
+    'Skills.csv': strToU8('Name\nPython\nPostgreSQL\nDocker\nAWS\nGit'),
+    'Certifications.csv': strToU8('Name,Url,Authority,Started On,Finished On,License Number\nAWS Cloud Practitioner,,Amazon Web Services,Jan 2025,Feb 2025,\nGoogle Cloud Associate,,Google,Mar 2026,Apr 2026,'),
+    'Shares.csv': strToU8(`Date,ShareLink,ShareCommentary,SharedUrl,MediaUrl,Visibility\n${iso(2, 5)} 09:00:00,,"Post one",,,MEMBER_NETWORK\n${iso(2, 20)} 09:00:00,,"Post two",,,MEMBER_NETWORK\n${iso(0, 1)} 09:00:00,,"Post three",,,MEMBER_NETWORK`),
+    'messages.csv': strToU8('FROM,CONTENT\nSomeone,SECRET-DM-CONTENT-NEVER-READ'),
+  });
+  const zipPath = path.join(outDir, 'test-export.zip');
+  fs.writeFileSync(zipPath, zip);
+
+  ({ ctx, page } = await open({ width: 1440, height: 900 }, `${base}/#profile`));
+  let sent = '';
+  page.on('request', (r) => {
+    if (r.url().endsWith('/api/assess')) sent = r.postData() ?? '';
+  });
+  check(/cannot be opened|forbids/i.test(await page.textContent('.lexport')), 'the form explains in plain words why a LinkedIn address is not read');
+  await page.locator('.lfile input[type=file]').setInputFiles(zipPath);
+  await page.waitForSelector('.lexport .lhint', { timeout: 8000 });
+  await page.waitForTimeout(300);
+  const filled = await page.inputValue('#profile-text');
+  check(/Backend engineer/.test(filled) && /Python/.test(filled), 'the ZIP fills the profile text from Profile, Positions and Skills');
+  check(!/House 12|1999|54000|SECRET-DM/.test(filled), 'address, birth date, zip code and messages are not in the filled-in text');
+  check(/3 posts|3 post/.test(await page.textContent('.lexport .lhint')) && /2 certifications/.test(await page.textContent('.lexport .lhint')), 'the form says what it read: 3 posts, 2 certifications');
+  await shot(page, 'assess-5c-export-form');
+  await page.getByRole('checkbox').check();
+  await page.fill('#profile-role', 'Backend engineer');
+  await page.getByRole('button', { name: /Review this profile/ }).click();
+  await page.waitForSelector('#o-done', { timeout: 90000 });
+  await page.waitForTimeout(1200);
+  check(sent.includes('"activity"') && /posts/i.test(sent), 'one line of activity numbers is sent with the profile');
+  check(!/House 12|1999|54000|SECRET-DM/.test(sent), 'nothing private from the ZIP is in the request that was sent');
+  check((await page.locator('.lbars li').count()) === 12, 'the activity card draws posts for twelve months');
+  check((await page.locator('.lcerts li').count()) === 2, 'the activity card lists both certifications');
+  const etext = await page.textContent('body');
+  check(/Your activity/.test(etext) && !/House 12|1999|SECRET-DM/.test(etext), 'the report shows the activity and nothing private');
+  await shot(page, 'assess-5d-export-report');
+  const missionBtn = page.getByRole('button', { name: /Play \d+ missions?/ });
+  check(await missionBtn.count() === 1, 'the report offers missions built from this profile');
+  await missionBtn.click();
+  await page.waitForSelector('#g-intro, .gintro, button', { timeout: 8000 });
+  await page.waitForTimeout(1500);
+  const itext = await page.textContent('body');
+  check(/profile agent/i.test(itext) && /Review another profile/.test(itext), 'the missions speak about a profile and not about a repository');
+  await shot(page, 'assess-5e-profile-missions');
+  await page.getByRole('button', { name: /Begin (level|mission) 1/i }).first().click();
+  await page.getByRole('button', { name: /Start simulation/i }).first().click();
+  await page.waitForSelector('.dbar', { timeout: 30000 });
+  await page.waitForTimeout(1200);
+  const mtext = await page.textContent('body');
+  check(/Approve and post/.test(mtext) && !/Approve and merge|pull request|commit/i.test(mtext), 'the first mission is worded for a profile: "Approve and post", no merge or commit');
+  await shot(page, 'assess-5f-profile-mission-step');
+  await ctx.close();
+
+  // the same page with a file that is not a LinkedIn export: a clear message, and nothing breaks
+  ({ ctx, page } = await open({ width: 1440, height: 900 }, `${base}/#profile`));
+  fs.writeFileSync(path.join(outDir, 'not-a-zip.zip'), 'this is not a zip');
+  await page.locator('.lfile input[type=file]').setInputFiles(path.join(outDir, 'not-a-zip.zip'));
+  await page.waitForSelector('.lexport .lhint', { timeout: 8000 });
+  check(/does not look like a ZIP/i.test(await page.textContent('.lexport .lhint')), 'a file that is not a ZIP is explained in plain words');
   await ctx.close();
 
   // ================================================================ the demos work with nothing running but the page

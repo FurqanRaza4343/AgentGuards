@@ -20,16 +20,16 @@ repository, a public website, or a profile that a person pasted. Two languages, 
 ## Commands
 
 ```bash
-npm install && npm test              # 212 vitest tests: scenarios, reducer, scoring, missions, the Python contracts
+npm install && npm test              # 249 vitest tests: scenarios, reducer, scoring, missions, the LinkedIn export reader, the Python contracts
 npm run build                        # type-check + production build
 cd server && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Windows; bin/ on Linux
-cd server && python -m pytest        # 425 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
+cd server && python -m pytest        # 427 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
 python -m guardscan.cli dir .. --repo owner/name --offline --fail-on high --ignore-file ../.agentguard-ignore   # scan this repo
 python -m guardscan.cli site example.com                      # read a website passively
 python -m guardscan.cli profile --file p.txt --role "..."      # review a pasted profile
 npm run shoot -- shots http://127.0.0.1:5173   # headless Chrome playthrough of all 7 levels (needs `npm run dev`)
 node tools/e2e-live.mjs                        # starts the real scanner + site and plays a generated mission
-node tools/e2e-assess.mjs                      # the Orchestrator on a planted website and a profile (uses Gemini if a key is set)
+node tools/e2e-assess.mjs                      # the Orchestrator on a planted website and a profile, a LinkedIn ZIP, and the missions (uses Gemini if a key is set)
 ```
 
 ## Rules that matter
@@ -45,7 +45,10 @@ node tools/e2e-assess.mjs                      # the Orchestrator on a planted w
 5. **Do not add stealth or anti-detection** (fingerprint spoofing, ignoring robots.txt). The project is defensive.
    Website reading is **passive and polite**: GET only, robots.txt first and obeyed, same-site redirects only, no forms,
    no scripts, no guessed paths, a total time limit per request, a small page budget (`tools/web.py`). Do not add active
-   probing. LinkedIn is **never scraped**: the person pastes their own text.
+   probing. LinkedIn is **never scraped** and a LinkedIn address is never fetched: the person pastes their own text, or chooses
+   their own "Get a copy of your data" ZIP, which `src/assess/linkedinExport.ts` reads **in the browser** (only a short list of
+   CSV files is decompressed, with size limits; address, birth date, zip code, maiden name and emails never leave it). Do not
+   add a server route that takes that ZIP, and do not add a LinkedIn fetcher.
 5b. **Regexes on text that someone else wrote must stay linear.** A nested or open-ended quantifier on a 100 KB string can take
    minutes and stall the server. Split into tokens or sentences first (`assess/textutil.py`), bound every quantifier, and
    keep the hostile-page test in `tests/test_site.py` green. CPU-heavy steps run in a thread.

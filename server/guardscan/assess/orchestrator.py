@@ -470,7 +470,7 @@ class _ProfileRun:
             h.log("Impact: a check failed, so its results are partial.", "warn", "finance", "nova", state="fail", task="Partial results")
 
 
-async def _profile(hub: Hub, text: str, role: str | None, svc: AssessServices, budget: Budget) -> AssessReport:
+async def _profile(hub: Hub, text: str, role: str | None, svc: AssessServices, budget: Budget, activity: str | None = None) -> AssessReport:
     hub.log("Nova: reading what you pasted and planning the work", "info", "nova", state="thinking", task="Planning")
     try:
         clean = prof.clean_input(text)
@@ -494,6 +494,9 @@ async def _profile(hub: Hub, text: str, role: str | None, svc: AssessServices, b
     strengths = [s for b in run.books.values() for s in b.strengths]
     p = run.profile_f.result()
     facts_raw = f"Headline: {p.headline if p else ''}\nAbout:\n{(p.about if p else '')[:1500]}\nExperience:\n{(p.experience if p else '')[:1800]}\nSkills: {', '.join(p.skills[:25]) if p else ''}"
+    note = prof.clean_activity(activity)
+    if note:
+        facts_raw += f"\nActivity (numbers from the person's own data export): {note}"
     facts = prepare_untrusted(prof.redact_for_model(facts_raw), "profile", 4200)
     brief = Brief(kind="profile", target="a professional profile", role=target_role, facts=facts, corpus=clean, findings=findings, strengths=strengths)
     questions, improvements, used, backup = await _nova_step(hub, svc, budget, brief)
@@ -551,7 +554,7 @@ async def assess(kind: str, payload: dict[str, Any], svc: AssessServices) -> Asy
                 if kind == "site":
                     report = await _site(hub, str(payload.get("url", "")), svc, budget)
                 elif kind == "profile":
-                    report = await _profile(hub, str(payload.get("text", "")), payload.get("role"), svc, budget)
+                    report = await _profile(hub, str(payload.get("text", "")), payload.get("role"), svc, budget, payload.get("activity"))
                 else:
                     raise AssessError("Unknown kind of analysis.")
             hub.put("report", report.model_dump(by_alias=True, exclude_none=True))

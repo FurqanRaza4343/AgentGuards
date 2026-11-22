@@ -101,6 +101,8 @@ export interface Scenario {
   id: string;
   /** 'mission' for scenarios generated from a scan of the player's own repository */
   kind?: 'level' | 'mission';
+  /** for missions: what they were made from, so the words around them fit */
+  source?: 'repo' | 'site' | 'profile';
   level: number;
   title: string;
   subtitle: string;

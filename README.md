@@ -25,7 +25,13 @@ Three things to do with it:
 |---|---|---|
 | **The campaign** | 7 hand-written levels about phishing, MCP tools, A2A, sandboxing, SSRF and more | Just the browser |
 | **Your repository** | Paste a public GitHub repository. A scanner reads it, finds secrets, risky workflows, unsafe code, exposed tool servers and known-vulnerable dependencies, and your coding agent's next pull request becomes a **mission built from your real lines**, with real line numbers | The scanner in `server/` (or the pre-baked demo) |
-| **Your website or profile** | **Nova, the orchestrator,** sends three specialists to read a public website (or the text of a profile you paste) at the same time. They report back, and Nova asks the **questions** that would make it better and suggests **rewrites** | The scanner, and optionally a Gemini key and a SearXNG server (or the pre-baked demos) |
+| **Your website or profile** | **Nova, the orchestrator,** sends three specialists to read a public website, or a profile (your own **LinkedIn data export**, or text you paste), at the same time. They report back, and Nova asks the **questions** that would make it better and suggests **rewrites**. For a profile you also see your **posts per month** and your **certifications** | The scanner, and optionally a Gemini key and a SearXNG server (or the pre-baked demos) |
+
+Each kind has **its own game**. The same engine and the same scoring run all three, but the words change: a repository mission is a pull
+request ("Approve and merge"), a website mission is a change that the web agent is about to publish ("Approve and publish", and the
+evidence is the page and the line that was flagged), and a profile mission is an update that the profile agent is about to post
+("Approve and post"). Each has categories of its own (web hardening, privacy exposure, findability, profile impact), and the things
+that were already fine in your own material are in the game too, as the legitimate requests you must not block.
 
 ## The Orchestrator: your website and your profile
 
@@ -35,7 +41,7 @@ is really happening: a cyan packet flies from Nova to a robot when it hands out 
 result, a purple one passes work from robot to robot (the Scraper hands the home page to Security and the pages to Content).
 Each robot's face shows its state (thinking, working, found problems, done) and a caption under its pedestal says what it is doing.
 
-| Robot | Website | Profile you paste |
+| Robot | Website | Profile (export or pasted text) |
 |---|---|---|
 | **Scraper / Reader** (DataRetriever) | Reads robots.txt, the home page and up to five linked pages, the sitemap, broken links | Splits the text into headline, About, experience, skills and says what is missing |
 | **Security / Privacy** (PurchasingAgent) | Headers, cookies, certificate, plain-http redirect, security.txt, mixed content, forms, secrets and notes in the page source, text written for AI readers | Phone, email, ID numbers, address, shortened links, secrets, text aimed at AI screening tools |
@@ -50,8 +56,15 @@ Where the lines are drawn:
 - **Websites are read passively and politely:** a few ordinary page requests, robots.txt first and obeyed, no forms submitted,
   no scripts run, no hidden paths guessed, a redirect to another site refused, one site read only a few times an hour.
   Findings explain what and why, never attack steps. If you find a real problem on a site that is not yours, tell its owner privately.
-- **LinkedIn is not scraped.** It forbids automated collection and needs a login. You paste your own text; nothing is fetched.
-  Contact details are replaced before any excerpt goes to a language model.
+- **LinkedIn is not scraped, and a LinkedIn address is not opened.** LinkedIn forbids automated collection, shows a login wall to
+  programs and blocks servers, and a profile belongs to a person who has not agreed to be read. The compliant way in is LinkedIn's
+  own **"Get a copy of your data"** export (Settings, Data privacy). Choose the ZIP on the Profile page: it is **read in your browser**
+  with a small unzip library, only `Profile`, `Positions`, `Education`, `Skills`, `Certifications`, `Shares` (your posts),
+  `Recommendations` and `Connections` are opened (messages and the rest are never decompressed), size limits guard against a zip bomb,
+  and **nothing is uploaded**. The page shows posts per month for the last 12 months, the longest silence, and your certifications,
+  and turns the numbers into findings ("You posted 2 times in 12 months", "No certifications are listed") and questions. Only the profile
+  text (without address, birth date, zip code, maiden name or emails) and one line of numbers go to the review. You can also paste text,
+  or press **Use a sample export** to try it with a fictional person. Contact details are replaced before any excerpt goes to a language model.
 - **Gemini writes the questions, and every answer is checked** (ids must exist, quotes must be in your own text, links and
   commands are removed, text that talks to an AI reader is dropped). Without a key, templates write the questions from the same findings.
 - **Search is optional** (SearXNG, `SEARXNG_URL`). Only the site's name or the role you typed ever leaves the server.
@@ -149,7 +162,7 @@ from templates.
 ```bash
 npm install
 npm run dev          # http://127.0.0.1:5173  (the campaign and the demo work with just this)
-npm test             # 213 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
+npm test             # 249 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
 npm run build        # type-check + production build into dist/
 npm run preview      # production build on http://127.0.0.1:4173 with the same strict CSP as the scanner serves
 ```
@@ -160,7 +173,7 @@ For real runs, start the scanner in a second terminal (Python 3.11 or newer; the
 cd server
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt        # .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                           # 425 tests, no network and no key needed
+.venv/Scripts/python -m pytest                           # 427 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -216,7 +229,8 @@ src/
   App.tsx                landing | game | analyze | site | profile | missions, driven by the URL hash
   styles/                fonts.css, theme.css, landing.css, game.css, live.css
   stage/                 three.js, one fixed canvas shared by landing, game and the scan screens
-  landing/               the three landing sections
+  landing/               the landing page: three full-screen sections over the 3D stage (Intro, Levels, Players), then Analyse yours,
+                         How it works, Trust and limits, Questions and a footer on a plain sheet; Nav (with a phone menu) and Rail
   game/
     types.ts             Scenario, Step, Artifact, Clue, Option, Reveal
     scenarios/           level1.ts ... level7.ts: all content is plain data
@@ -225,10 +239,13 @@ src/
     scoring.ts progress.ts guide.ts agentState.ts labels.ts layout.ts
     Game.tsx             wires state, stage, sound, progress; takes the scenarios to play
     ui/                  ArtifactView (incl. the code window), Panels, Cards, FieldGuide
-  missions/              report types, per-category templates, buildMissions(report)
-  live/                  scan client (SSE, validates what the server sends), report tools, AnalyzeView (repository)
+  missions/              report types, per-category templates, buildMissions(report), flavors.ts (the words for a repository, a
+                         website and a profile), assessReport.ts (website and profile findings -> mission steps)
+  live/                  scan client (SSE, validates what the server sends), report tools, AnalyzeView (repository),
+                         missionSource.ts (what the missions were built from, kept for a reload of the tab)
   assess/                the Orchestrator screens: OrchestratorView, Crew (status list and the captions on the 3D stage),
-                         beams, ModeTabs, the report types and their validation, the client
+                         beams, ModeTabs, the report types and their validation, the client,
+                         linkedinExport.ts (reads the LinkedIn data ZIP in the browser) and ActivityCard (posts per month, certifications)
   lib/                   sound.ts (Web Audio), storage helpers, media-query hooks
 server/                  the Python scanner: see server/README.md
 tests/                   vitest: game, validate, missions, assess, demoReport (+ fixtures)
@@ -297,9 +314,12 @@ screen reader.
   pre-baked demos keep working.
 - **Only one real website has been scanned** (`example.com`). Scan your own and read the result with a critical eye: the checks
   are heuristics.
-- **Missions from website and profile findings** are not built yet. The repository findings become playable missions; website
-  and profile findings become the report, the questions and the rewrites.
-- **Not built, by design for this version:** proof of site ownership, a PDF upload for profiles (paste the text instead),
+- **Missions from website and profile findings** are built from the same report as the questions. Every step is checked by the same
+  validator as the hand-written levels (best path reaches Guardian, blocking everything or allowing everything does not), and a finding
+  that cannot make a fair step is left out, so a short report gives only a few missions.
+- **LinkedIn's export format can change.** The reader looks for files and columns by name and says what it did not find; if LinkedIn
+  renames something, the card shows less, and nothing breaks. Only 12 months of posts are drawn.
+- **Not built, by design for this version:** proof of site ownership, a PDF upload for profiles (use the data export or paste the text),
   answering Nova's questions in the page and getting feedback on the answer, private repositories through a GitHub App, and a
   hardened `agentguard mcp` tool server for coding agents.
 - **Urdu and Roman Urdu** for the interface and the Field Guide (right-to-left layout), plus a teacher mode with a shareable link.

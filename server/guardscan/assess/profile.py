@@ -96,6 +96,15 @@ def clean_role(role: str | None) -> str:
     return " ".join(r.split())[:80]
 
 
+def clean_activity(note: str | None) -> str:
+    """One line of numbers and dates that the browser worked out from the person's own export. It arrives in a request, so it is data:
+    control characters are removed, spaces collapsed, the length capped, and it is wrapped as untrusted text before a model sees it."""
+    if not note:
+        return ""
+    cleaned = re.sub(r"[\x00-\x1f\x7f]", " ", note)
+    return " ".join(cleaned.split())[:600]
+
+
 def parse_profile(text: str) -> Profile:
     lines = [ln.strip() for ln in text.split("\n")]
     p = Profile(raw=text)

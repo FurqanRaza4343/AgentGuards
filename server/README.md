@@ -7,14 +7,15 @@ report. Three kinds of input:
 |---|---|---|
 | A **public GitHub repository** | Scout, Retriever, Auditor, Coach | Findings with real file names and line numbers, which the game (`../src/missions/`) turns into playable missions |
 | A **website** | The Orchestrator: Nova + Scraper, Security, Content | Security, search and accessibility findings, **questions** and rewrites from Nova |
-| A **profile you paste** (for example from LinkedIn) | The Orchestrator: Nova + Reader, Privacy, Impact | Privacy, writing and keyword findings, **questions** and rewrites from Nova |
+| A **profile**: text you paste, or the text of your own LinkedIn data export (read in the browser) | The Orchestrator: Nova + Reader, Privacy, Impact | Privacy, writing and keyword findings, **questions** and rewrites from Nova |
 
 Nothing from a repository, a site or a profile is ever executed, and nothing is stored.
 
 ```
 POST /api/scan     {"url": "github.com/owner/repo"}                    -> Server-Sent Events: log ... log, report (or error)
 POST /api/assess   {"kind": "site", "url": "example.com"}              -> the same shape, for a website
-                   {"kind": "profile", "text": "...", "role": "..."}   -> the same shape, for a pasted profile
+                   {"kind": "profile", "text": "...", "role": "...", "activity": "..."}   -> the same shape, for a profile
+                                                           (`activity`: optional, one line of numbers from the member's own export)
 GET  /api/demo, /api/demo/site, /api/demo/profile                      the pre-baked reports of the planted demos
 GET  /api/health                                                       {"ok": true, "model": true, "search": false, "testSource": false}
 ```
@@ -58,7 +59,10 @@ the typed role leaves this server**, never a pasted profile or a person's name. 
 cleaned, dropped if they talk to an AI reader, never fetched. The keyword comparison is counting, not guessing: a fixed
 vocabulary, counted across the results.
 
-**Profiles, not scraping.** LinkedIn forbids automated collection and needs a login, so the person pastes their own text.
+**Profiles, not scraping.** LinkedIn forbids automated collection and needs a login, so the person pastes their own text, or
+chooses their own "Get a copy of your data" ZIP, which the browser reads (the server never receives the file). The optional
+`activity` field is one line of numbers and dates that the browser derived from it; `clean_activity` (`assess/profile.py`) strips
+control characters and caps its length, and Nova's prompt wraps it as untrusted data, like the profile text.
 Contact details are replaced (`[email]`, `[phone]`, `[id]`) before any excerpt reaches a model.
 
 ## The repository scan crew
@@ -96,7 +100,7 @@ and `hygiene`. Several rules also produce a **benign** match, the safe form of t
 ```bash
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt     # Windows; use .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                        # 425 tests, no network and no key needed
+.venv/Scripts/python -m pytest                        # 427 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -144,7 +148,7 @@ entries are reported. The web service never reads such a file from a repository 
 
 Verified:
 
-- the 425 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
+- the 427 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
   with a bad and a good case, the pipeline, the Orchestrator with fake models and fake search, the HTTP interface, the CLI);
 - the pinned `requirements.txt` installs into a clean Python 3.11 environment and the suite passes there;
 - **Gemini, live, on 2026-11-22:** the Coach for the repository demo (prose kept for 12 of 13 findings), and Nova's questions and

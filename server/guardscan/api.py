@@ -55,6 +55,7 @@ class AssessRequest(BaseModel):
     url: str | None = Field(default=None, max_length=300)
     text: str | None = Field(default=None, max_length=25_000)
     role: str | None = Field(default=None, max_length=120)
+    activity: str | None = Field(default=None, max_length=700)  # profile only: numbers from the person's own data export, as one line
 
 
 def default_assess_services(kill: KillSwitch | None = None) -> AssessServices:
@@ -196,7 +197,7 @@ def create_app(services: Services | None = None, *, assess_services: AssessServi
 
         async def stream() -> AsyncIterator[str]:
             async with gate:
-                async for kind, data in assess(body.kind, {"url": body.url, "text": body.text, "role": body.role}, asvc):
+                async for kind, data in assess(body.kind, {"url": body.url, "text": body.text, "role": body.role, "activity": body.activity}, asvc):
                     yield f"event: {kind}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})

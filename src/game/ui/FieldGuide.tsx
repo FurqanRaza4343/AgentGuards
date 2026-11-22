@@ -65,7 +65,7 @@ export function FieldGuide({ focusId, onClose }: { focusId: string | null; onClo
                   <li key={d}>{d}</li>
                 ))}
               </ul>
-              <small>{g.levels.length === 0 ? 'Appears in missions made from your own repository' : g.levels.length >= 6 ? 'Appears in most levels' : `Appears in level ${g.levels.join(', ')}`}</small>
+              <small>{g.levels.length === 0 ? 'Appears in missions made from your own repository, website or profile' : g.levels.length >= 6 ? 'Appears in most levels' : `Appears in level ${g.levels.join(', ')}`}</small>
             </article>
           ))}
         </div>

@@ -88,7 +88,44 @@
 .lgood li::before{content:"\2713";position:absolute;left:0;color:var(--good);font-weight:700}
 .live .lgood-label{margin-top:18px}
 
+/* ---- the LinkedIn export: the file picker, and the activity card */
+.lexport{margin:4px 0 6px;padding:14px 16px 16px;border:1px solid var(--hair);background:rgba(255,255,255,.55)}
+.lexport .glabel{margin-bottom:8px}
+.live .lexport p{margin:0 0 6px;font-size:13.5px;line-height:1.5}
+.lexport .gactions{margin-top:12px}
+.lform .lfile{position:relative;display:inline-flex;margin:0;font:500 12px/1 var(--mono);letter-spacing:.06em;color:var(--ink);cursor:pointer}
+.lfile input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer}
+.lfile:focus-within{outline:2px solid var(--ink);outline-offset:3px}
+.lexport .lhint{margin-top:12px}
+.lhow{margin-top:12px;border-top:1px solid var(--hair)}
+.lhow>summary{padding:10px 0 4px;cursor:pointer;font:500 11px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);list-style:none}
+.lhow>summary::-webkit-details-marker{display:none}
+.lhow>summary::before{content:"+ "}
+.lhow[open]>summary::before{content:"- "}
+.lhow>summary:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.lhow ol{margin:8px 0 0;padding-left:20px;display:grid;gap:6px;font-size:13.5px;line-height:1.45}
+
+.lbars{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;align-items:end;height:128px;margin:6px 0 16px;padding:0;list-style:none}
+.lbars li{position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;height:100%}
+.lbar{display:block;width:100%;min-height:2px;background:var(--ink)}
+.lbar[data-zero]{background:var(--hair)}
+.lbars small{font:400 10px/1 var(--mono);color:var(--dim)}
+.lbars b{position:absolute;top:0;font:500 10px/1 var(--mono)}
+.lbars li:has(.lbar[data-zero]) b{color:var(--dim);font-weight:400}
+.lstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 6px}
+.lstats div{padding:10px 12px;border:1px solid var(--hair)}
+.lstats dt{font:400 10px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.lstats dd{margin:6px 0 0;font-size:20px;line-height:1;letter-spacing:-.01em}
+.lcert-label{margin-top:18px}
+.lcerts{display:grid;gap:8px;margin:0 0 8px;padding:0;list-style:none}
+.lcerts li{padding:8px 10px;border-left:3px solid var(--good);background:rgba(31,141,91,.07)}
+.lcerts b{display:block;font-size:14px;font-weight:500;overflow-wrap:anywhere}
+.lcerts small{display:block;margin-top:2px;font:400 11px/1.3 var(--mono);color:var(--dim)}
+.lact .gnote{margin-top:14px}
+
 @media (max-width:900px){
   .lfind li{grid-template-columns:64px 1fr}
   .lcrew-row{grid-template-columns:10px minmax(80px,104px) 1fr}
+  .lstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lbars{gap:3px}
 }

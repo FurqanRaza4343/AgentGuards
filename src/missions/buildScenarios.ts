@@ -1,5 +1,7 @@
 import type { Clue, Option, Scenario, Span, Step } from '../game/types';
 import { validateScenario } from '../game/validate';
+import { WORDS } from './flavors';
+import type { Flavor, Words } from './flavors';
 import { ALLOW_PENALTY, SEVERITY_ORDER, TEMPLATES, categoryOf } from './templates';
 import type { Category, Finding, LineRange, Report } from './types';
 
@@ -42,7 +44,7 @@ function ordinaryDecoy(f: Finding, taken: LineRange[]): LineRange | null {
 }
 
 /** Turns one finding into one playable step. Returns null when the finding cannot make a fair step. */
-export function buildStep(f: Finding): BuiltStep | null {
+export function buildStep(f: Finding, w: Words = WORDS.repo): BuiltStep | null {
   const tpl = categoryOf(f);
   const first = f.context.startLine;
   const last = first + f.context.lines.length - 1;
@@ -93,26 +95,26 @@ export function buildStep(f: Finding): BuiltStep | null {
   });
 
   const meta: Step['artifact']['meta'] = [
-    { k: 'File', v: [f.path] },
+    { k: w.metaPath, v: [f.path] },
     { k: 'Rule', v: [f.rule] },
     { k: 'Severity', v: [f.severity] },
   ];
 
   const prose = f.prose ?? {};
   const threat = !benign;
-  const title = clip(`Your coding agent wants to merge: ${f.title}`, 96);
+  const title = clip(`${w.titlePrefix}: ${f.title}`, 96);
   const situation =
     prose.situation ??
     (threat
-      ? `The agent opened a pull request that touches ${f.path}, lines ${f.startLine} to ${f.endLine}. It wants to ${tpl.want}.`
-      : `The agent opened a pull request that touches ${f.path}. It looks like a pattern that often goes wrong, but it may be the safe form. Check before you decide.`);
-  const say = prose.say ?? (threat ? tpl.say : 'This change only uses the safe form of the pattern, so there is nothing to worry about, right?');
+      ? `${w.threatIntro(f)} It wants to ${tpl.want}.`
+      : w.safeIntro(f));
+  const say = prose.say ?? (threat ? tpl.say : w.sayBenign);
 
   const log: Step['log'] = [
-    { text: `[SIMULATION] Coding agent opened a pull request: ${f.title}`, tone: 'system' },
-    { text: `> git.diff("${f.path}", lines=${f.startLine}-${f.endLine})`, tone: 'tool' },
+    { text: w.logOpen(f), tone: 'system' },
+    { text: w.logTool(f), tone: 'tool' },
     { text: `Rule matched: ${f.rule} (${f.severity})`, tone: threat ? 'warn' : 'info' },
-    { text: 'The coding agent is waiting for your review.', tone: threat ? 'warn' : 'info' },
+    { text: w.waiting, tone: threat ? 'warn' : 'info' },
   ];
 
   const options: Option[] = threat
@@ -120,8 +122,8 @@ export function buildStep(f: Finding): BuiltStep | null {
         {
           id: 'allow',
           kind: 'allow',
-          label: 'Approve and merge',
-          hint: 'Merge the change as it is.',
+          label: w.approve.label,
+          hint: w.approve.hint,
           verdict: 'risky',
           safety: ALLOW_PENALTY[f.severity],
           work: 0,
@@ -129,37 +131,37 @@ export function buildStep(f: Finding): BuiltStep | null {
           consequence: prose.consequence ?? tpl.consequence,
           lesson: prose.lesson ?? tpl.lesson,
           log: [
-            { text: '> git.merge(pr) APPROVED by you', tone: 'tool' },
-            { text: `Merged: ${f.title}`, tone: 'bad' },
+            { text: w.approve.log, tone: 'tool' },
+            { text: w.approve.bad(f), tone: 'bad' },
           ],
         },
         {
           id: 'block',
           kind: 'block',
           label: 'Reject the change',
-          hint: 'Close the pull request without merging.',
+          hint: w.reject.hint,
           verdict: 'safe',
           safety: 10,
           work: 0,
           reaction: 'success',
-          consequence: 'The pull request was closed and nothing shipped. The problem is still waiting to be fixed, and the feature the change belonged to is stuck.',
+          consequence: w.reject.consequence,
           lesson: 'Rejecting is safe, but nothing gets fixed. Asking for the specific fix keeps you safe and gets the work done.',
-          log: [{ text: '> git.merge(pr) REJECTED by you', tone: 'good' }],
+          log: [{ text: w.reject.log, tone: 'good' }],
         },
         {
           id: 'human',
           kind: 'human',
-          label: 'Ask a security reviewer',
-          hint: 'Send it to someone who reviews security changes.',
+          label: w.human.label,
+          hint: w.human.hint,
           verdict: 'safe',
           safety: 15,
           work: 5,
           reaction: 'success',
-          consequence: 'A security reviewer looked at the change, agreed it was a problem and sent it back with notes. It took a day.',
+          consequence: w.human.consequence,
           lesson: 'A reviewer is a strong check, but slow. Use one when you cannot tell, or when the fix is not obvious.',
           log: [
             { text: '> human.review(pr)', tone: 'tool' },
-            { text: 'Reviewer: problem confirmed, changes requested.', tone: 'good' },
+            { text: w.human.log, tone: 'good' },
           ],
         },
         {
@@ -174,7 +176,7 @@ export function buildStep(f: Finding): BuiltStep | null {
           consequence: `The agent was asked for the specific fix: ${f.fix.summary} The reviewed change shipped safely.`,
           lesson: 'Ask for the specific fix, not just a yes or a no. It keeps you safe and finishes the work.',
           log: [
-            { text: `> git.request_changes(pr, fix="${clip(f.fix.summary, 60)}")`, tone: 'tool' },
+            { text: w.fixLog(f.fix.summary), tone: 'tool' },
             { text: 'Fix applied and re-reviewed.', tone: 'good' },
           ],
         },
@@ -183,39 +185,39 @@ export function buildStep(f: Finding): BuiltStep | null {
         {
           id: 'allow',
           kind: 'allow',
-          label: 'Approve and merge',
-          hint: 'Merge the change as it is.',
+          label: w.approve.label,
+          hint: w.approve.hint,
           verdict: 'safe',
           safety: 10,
           work: 20,
           reaction: 'success',
-          consequence: 'The change was merged. It uses the safe form of a pattern that often goes wrong, so approving it was right.',
+          consequence: w.approve.benignConsequence,
           lesson: 'Telling safe from unsafe matters as much as catching the bad. Approve what is clearly fine and save your attention for what is not.',
-          log: [{ text: '> git.merge(pr) APPROVED by you', tone: 'good' }],
+          log: [{ text: w.approve.good, tone: 'good' }],
         },
         {
           id: 'block',
           kind: 'block',
           label: 'Reject the change',
-          hint: 'Close the pull request without merging.',
+          hint: w.reject.hint,
           verdict: 'neutral',
           safety: 0,
           work: 0,
           reaction: 'thinking',
           consequence: 'The change was rejected. It was the safe form, so you blocked good work and the agent has to start again.',
           lesson: 'Over-blocking: if safe changes are refused, people stop trusting the review. Check, then approve what is safe.',
-          log: [{ text: '> git.merge(pr) REJECTED by you', tone: 'warn' }],
+          log: [{ text: w.reject.log, tone: 'warn' }],
         },
         {
           id: 'human',
           kind: 'human',
-          label: 'Ask a security reviewer',
-          hint: 'Send it to someone who reviews security changes.',
+          label: w.human.label,
+          hint: w.human.hint,
           verdict: 'safe',
           safety: 5,
           work: 10,
           reaction: 'success',
-          consequence: 'A security reviewer confirmed it was the safe form. The change was merged after a short wait.',
+          consequence: w.human.benignConsequence,
           lesson: 'Asking is never wrong, but nothing here needed a person.',
           log: [
             { text: '> human.review(pr)', tone: 'tool' },
@@ -228,7 +230,7 @@ export function buildStep(f: Finding): BuiltStep | null {
     id: slug(f.id),
     source: { findingId: f.id, path: f.path, startLine: f.startLine, endLine: f.endLine },
     actor: 'nova',
-    tool: 'git',
+    tool: w.tool,
     title,
     situation,
     say,
@@ -254,25 +256,30 @@ const THEME: Record<Category, string> = {
   'prompt-injection': 'Hidden instructions',
   injection: 'Unsafe code',
   hygiene: 'Housekeeping',
+  'site-security': 'Security',
+  'site-privacy': 'Privacy',
+  'site-content': 'Findability',
+  'profile-security': 'Trust',
+  'profile-privacy': 'Privacy',
+  'profile-content': 'Impact',
 };
 
-function makeMission(repo: string, commit: string, n: number, steps: Step[], findings: Finding[], third: boolean): Scenario {
+function makeMission(repo: string, commit: string, n: number, steps: Step[], findings: Finding[], third: boolean, w: Words = WORDS.repo): Scenario {
   const cats = [...new Set(findings.map((f) => f.category))];
   const themes = cats.slice(0, 2).map((c) => THEME[c]);
   const concepts = [...new Set(cats.flatMap((c) => TEMPLATES[c].concepts))];
   const learning = [...new Set(cats.map((c) => TEMPLATES[c].learning))].slice(0, 3);
   const short = repo.split('/').pop() ?? repo;
   return {
-    id: `live-${slug(repo)}-${commit.slice(0, 7) || 'x'}-${n}`,
+    id: `live-${w.flavor === 'repo' ? '' : `${w.flavor}-`}${slug(repo)}-${commit.slice(0, 7) || 'x'}-${n}`,
     kind: 'mission',
+    source: w.flavor,
     level: n,
-    title: n === 1 ? `The riskiest lines in ${short}` : `${themes.join(' and ') || 'More lines'} in ${short}`,
-    subtitle: `${steps.length} reviews from your own repository`,
-    briefing:
-      `Your coding agent wants to merge changes into ${repo}. Each step shows real lines from the repository, with their real line numbers. Inspect them, find the red flags, and decide.` +
-      (third ? ' This repository was analysed in third-party mode: nothing here is a recipe, and anything real should be reported privately to its maintainers.' : ''),
+    title: w.missionTitle(n, short, themes.join(' and ')),
+    subtitle: w.subtitle(steps.length),
+    briefing: w.briefing(repo, third),
     agents: ['nova'],
-    roles: { nova: 'Coding agent' },
+    roles: { nova: w.role },
     concepts,
     learning: learning.length > 0 ? learning : ['Review each change on its merits.'],
     steps,
@@ -282,6 +289,8 @@ function makeMission(repo: string, commit: string, n: number, steps: Step[], fin
 export interface BuildOptions {
   maxMissions?: number;
   threatsPerMission?: number;
+  /** whose words the missions use: a repository (the default), a website or a profile */
+  flavor?: Flavor;
 }
 
 /**
@@ -293,6 +302,7 @@ export function buildMissions(report: Report, opts: BuildOptions = {}): BuildRes
   const perMission = opts.threatsPerMission ?? 3;
   const dropped: string[] = [];
   const third = report.findings.some((f) => !f.owned);
+  const w = WORDS[opts.flavor ?? 'repo'];
 
   const rank = (f: Finding) => SEVERITY_ORDER.indexOf(f.severity);
   const sorted = [...report.findings].sort((a, b) => rank(a) - rank(b) || a.rule.localeCompare(b.rule) || a.path.localeCompare(b.path));
@@ -300,7 +310,7 @@ export function buildMissions(report: Report, opts: BuildOptions = {}): BuildRes
   const threats: { f: Finding; step: Step }[] = [];
   const benign: { f: Finding; step: Step }[] = [];
   for (const f of sorted) {
-    const built = buildStep(f);
+    const built = buildStep(f, w);
     if (!built) {
       dropped.push(`${f.id}: not enough evidence to build a fair step`);
       continue;
@@ -309,7 +319,7 @@ export function buildMissions(report: Report, opts: BuildOptions = {}): BuildRes
   }
 
   // a threat has to hold up as a mission on its own
-  const probe = (item: { f: Finding; step: Step }) => validateScenario(makeMission(report.repo, report.commit, 0, [item.step], [item.f], third), 'generated');
+  const probe = (item: { f: Finding; step: Step }) => validateScenario(makeMission(report.repo, report.commit, 0, [item.step], [item.f], third, w), 'generated');
   const fair = threats.filter((t) => {
     const errs = probe(t);
     if (errs.length > 0) dropped.push(`${t.f.id}: ${errs[0]}`);
@@ -334,10 +344,10 @@ export function buildMissions(report: Report, opts: BuildOptions = {}): BuildRes
       fs.push(extra.f);
     }
     const n = missions.length + 1;
-    let mission = makeMission(report.repo, report.commit, n, steps, fs, third);
+    let mission = makeMission(report.repo, report.commit, n, steps, fs, third, w);
     let errs = validateScenario(mission, 'generated');
     if (errs.length > 0 && extra) {
-      mission = makeMission(report.repo, report.commit, n, chunk.map((c) => c.step), chunk.map((c) => c.f), third);
+      mission = makeMission(report.repo, report.commit, n, chunk.map((c) => c.step), chunk.map((c) => c.f), third, w);
       errs = validateScenario(mission, 'generated');
     } else if (extra) b++;
     if (errs.length > 0) {

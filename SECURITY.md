@@ -47,7 +47,10 @@ runs no scripts, and stores nothing. If it did something else, please report it.
 - Only masked, short excerpts are sent to a language model, and only when a key is configured: to Gemini, and, only if the operator configured
   one (`AI_API_KEY`), to a backup provider when no Gemini model answers. The interface says when the backup wrote the text. For a pasted profile,
   contact details are replaced first. A search server (optional) only ever receives a site's own name or the role a person typed.
-- LinkedIn and other logged-in sites are never fetched. A person pastes their own text.
+- LinkedIn and other logged-in sites are never fetched. A person pastes their own text, or chooses their own LinkedIn "Get a copy of
+  your data" ZIP, which is **read in the browser and never uploaded**: only a short list of CSV files is decompressed (with size and
+  count limits against a zip bomb), the address, birth date, zip code, maiden name and email addresses are dropped, and the server
+  receives only the profile text and one line of activity numbers (`activity`), which it cleans and treats as untrusted data.
 - Every scan is in *third-party mode*: findings explain what and where, without attack steps, and secrets are masked.
   Do not publish findings about repositories you do not own. Tell the maintainers privately.
 

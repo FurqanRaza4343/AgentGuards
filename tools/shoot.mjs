@@ -59,6 +59,26 @@ if (suite === 'all' || suite === 'landing') {
     await page.waitForTimeout(3500);
     await shot(page, name);
   }
+  // the four sections below the stage, and the footer: scroll each into view, let it reveal, look at it
+  for (const [id, name] of [['analyse', 'landing-4-analyse'], ['crew', 'landing-5-crew'], ['trust', 'landing-6-trust'], ['faq', 'landing-7-faq']]) {
+    await page.evaluate((i) => document.getElementById(i)?.scrollIntoView({ behavior: 'instant' }), id);
+    await page.waitForTimeout(1800);
+    await shot(page, name);
+    check(await page.evaluate((i) => document.getElementById(i)?.classList.contains('in') ?? false, id), `section "${id}" is revealed`);
+  }
+  await page.locator('.faq details').first().locator('summary').click();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(1200);
+  await shot(page, 'landing-8-footer');
+  check(await page.locator('.foot').isVisible(), 'the footer is reached by scrolling to the end');
+  check((await page.locator('.rlabel span').textContent()) === 'FAQ', 'the rail label follows the reader to the last section');
+  check((await page.locator('.faq details[open]').count()) === 1, 'a question opens');
+  // the menu: each entry scrolls to its own section
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(800);
+  await page.locator('.menu a', { hasText: 'How it works' }).click();
+  await page.waitForTimeout(1800);
+  check(await page.evaluate(() => Math.abs(document.getElementById('crew').getBoundingClientRect().top) < 8), 'the menu entry "How it works" scrolls to its section');
   await ctx.close();
 }
 
@@ -171,6 +191,24 @@ if (suite === 'all' || suite === 'mobile') {
   await page.evaluate(() => window.scrollTo(0, 2 * window.innerHeight));
   await page.waitForTimeout(3500);
   await shot(page, 'mobile-3-players');
+  // the phone menu, and the sections below the stage: nothing may be wider than the screen
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(600);
+  await page.getByRole('button', { name: /Open the menu/i }).click();
+  await page.waitForTimeout(400);
+  await shot(page, 'mobile-2-menu');
+  check((await page.locator('#mpanel a').count()) >= 6, 'the phone menu lists the sections and the three pages');
+  await page.keyboard.press('Escape');
+  check(await page.locator('#mpanel').isHidden(), 'Esc closes the phone menu');
+  for (const [id, name] of [['analyse', 'mobile-7-analyse'], ['crew', 'mobile-8-crew'], ['trust', 'mobile-9-trust'], ['faq', 'mobile-10-faq']]) {
+    await page.evaluate((i) => document.getElementById(i)?.scrollIntoView({ behavior: 'instant' }), id);
+    await page.waitForTimeout(1500);
+    await shot(page, name);
+  }
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(900);
+  await shot(page, 'mobile-11-footer');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'the landing page does not scroll sideways on a phone');
   await page.goto(`${base}/#play`);
   await page.reload();
   await page.waitForTimeout(3000);

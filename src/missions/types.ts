@@ -15,7 +15,14 @@ export type Category =
   | 'agent-instructions'
   | 'prompt-injection'
   | 'injection'
-  | 'hygiene';
+  | 'hygiene'
+  // missions made from a website or a pasted profile (not produced by the repository scanner)
+  | 'site-security'
+  | 'site-privacy'
+  | 'site-content'
+  | 'profile-security'
+  | 'profile-privacy'
+  | 'profile-content';
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 

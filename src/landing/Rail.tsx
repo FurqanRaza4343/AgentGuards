@@ -1,10 +1,10 @@
 import { Icon } from '../components/ui';
 
-const NAMES = ['Intro', 'Levels', 'Players'];
-const TOP = [0, 31, 62]; // % of the rail height
-const DOT = [0, 4, 8]; // which of the 14 dots the label sits on
+const NAMES = ['Intro', 'Levels', 'Players', 'Analyse', 'How', 'Trust', 'FAQ'];
+const DOT = [0, 2, 4, 6, 8, 10, 13]; // which of the 14 dots the label sits on
+const TOP = DOT.map((d) => Math.round((d / 13) * 100)); // % of the rail height
 
-/** Right-hand rail: 14 dots and a label that slides to the section that is more than half visible. */
+/** Right-hand rail: 14 dots and a label that slides to the section the reader is in. */
 export function Rail({ active }: { active: number }) {
   return (
     <aside className="rail" aria-hidden="true">

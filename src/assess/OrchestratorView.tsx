@@ -12,7 +12,11 @@ import { loadAssessDemo, runAssess } from './assessClient';
 import { beamColour, CREW_ORDER, emptyTasks, idleStates } from './beams';
 import type { CrewStates, CrewTasks } from './beams';
 import { CrewStatus, StageCaptions } from './Crew';
+import { ActivityCard } from './ActivityCard';
+import { ExportError, mergeActivity, readExportZip, sampleExport } from './linkedinExport';
+import type { ExportResult } from './linkedinExport';
 import { ModeTabs } from './ModeTabs';
+import { buildAssessMissions } from '../missions/assessReport';
 import { AREA_LABEL, assessToMarkdown, countBySeverity } from './types';
 import type { AFinding, AssessKind, AssessReport } from './types';
 
@@ -32,22 +36,24 @@ const COPY: Record<AssessKind, { label: string; title: string; intro: string; ru
     label: 'AgentGuard Orchestrator · profile',
     title: 'Let the crew review your profile.',
     intro:
-      'Paste the text of your LinkedIn (or any professional) profile. Nova sends a Reader, a Privacy checker and an Impact reviewer, then asks the questions that would make it stronger. Nothing is fetched from LinkedIn: only what you paste is read.',
+      'Use your own LinkedIn data export, or paste the text of any professional profile. Nova sends a Reader, a Privacy checker and an Impact reviewer, then asks the questions that would make it stronger. Nothing is fetched from LinkedIn.',
     run: 'Review this profile',
     busy: 'The crew is reading your profile.',
-    busyText: 'Only the text you pasted is read. Contact details are replaced before any excerpt goes to a language model.',
+    busyText: 'Only the text and the numbers from your own export are read. Contact details are replaced before any excerpt goes to a language model.',
   },
 };
 
 const SEV_ORDER: AFinding['severity'][] = ['critical', 'high', 'medium', 'low', 'info'];
 
-export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: () => void }) {
+export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; onExit: () => void; onPlay?: (report: AssessReport) => void }) {
   const copy = COPY[kind];
   const [phase, setPhase] = useState<Phase>('form');
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [role, setRole] = useState('');
   const [consent, setConsent] = useState(false);
+  const [exported, setExported] = useState<ExportResult | null>(null);
+  const [exportNote, setExportNote] = useState('');
   const [log, setLog] = useState<LogLine[]>([]);
   const [report, setReport] = useState<AssessReport | null>(null);
   const [error, setError] = useState('');
@@ -82,6 +88,8 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
     setTasks(emptyTasks());
     setCopied(false);
     setShowAll(false);
+    setExported(null);
+    setExportNote('');
   }, [kind]);
 
   const handleLine = useCallback((line: LogLine) => {
@@ -112,7 +120,7 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
   };
 
   const finish = (r: AssessReport) => {
-    setReport(r);
+    setReport(exported && kind === 'profile' && !r.demo ? mergeActivity(r, exported) : r);
     setPhase('done');
     setStates((s) => ({ ...s, nova: 'success' }));
   };
@@ -128,7 +136,7 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
     const ctl = new AbortController();
     abort.current = ctl;
     try {
-      finish(await runAssess(kind === 'site' ? { kind, url: url.trim() } : { kind, text, role: role.trim() }, handleLine, ctl.signal));
+      finish(await runAssess(kind === 'site' ? { kind, url: url.trim() } : { kind, text, role: role.trim(), activity: exported?.summary }, handleLine, ctl.signal));
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
         setPhase('form');
@@ -153,6 +161,25 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
     }
   };
 
+  const takeExport = (ex: ExportResult) => {
+    setExported(ex);
+    setText(ex.text);
+    const s = ex.stats;
+    setExportNote(
+      `Read in your browser: ${s.hasPosts ? `${s.postsLast12} post${s.postsLast12 === 1 ? '' : 's'} in the last 12 months, ` : ''}${s.hasCertFile ? `${s.certifications.length} certification${s.certifications.length === 1 ? '' : 's'}, ` : ''}${s.positions} position${s.positions === 1 ? '' : 's'}, ${s.skills} skill${s.skills === 1 ? '' : 's'}. The profile text below was filled in for you (no address, birth date or email). Nothing was uploaded.`,
+    );
+  };
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      takeExport(readExportZip(new Uint8Array(await file.arrayBuffer())));
+    } catch (err) {
+      setExported(null);
+      setExportNote(err instanceof ExportError ? err.message : 'That file could not be read.');
+    }
+  };
+
   const copySummary = async () => {
     if (!report) return;
     try {
@@ -165,6 +192,7 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
 
   const counts = report ? countBySeverity(report.findings) : {};
   const real = useMemo(() => (report ? report.findings.filter((f) => f.severity !== 'info') : []), [report]);
+  const missionCount = useMemo(() => (report ? buildAssessMissions(report).missions.length : 0), [report]);
   const shown = showAll ? report?.findings ?? [] : (report?.findings ?? []).slice(0, 10);
   const summaries = useMemo(() => {
     const out: Partial<Record<AgentId, string>> = {};
@@ -206,6 +234,32 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
               </>
             ) : (
               <>
+                <div className="lexport">
+                  <p className="glabel">Your LinkedIn data · recommended</p>
+                  <p>
+                    A LinkedIn <b>address</b> cannot be opened: LinkedIn forbids automated access, shows a login wall to programs, and blocks servers, so AgentGuard does not try. Your own <b>data export</b> is
+                    allowed, and it holds more than the page shows: the date of every post and every certification. It is read here, in your browser.
+                  </p>
+                  <div className="gactions">
+                    <label className="gbtn lfile">
+                      Choose your LinkedIn ZIP
+                      <input type="file" accept=".zip,application/zip,application/x-zip-compressed" onChange={(e) => void onFile(e.target.files?.[0])} />
+                    </label>
+                    <button className="gbtn" type="button" onClick={() => takeExport(sampleExport())}>
+                      Use a sample export
+                    </button>
+                  </div>
+                  {exportNote && <p className="lhint" role="status">{exportNote}</p>}
+                  <details className="lhow">
+                    <summary>How to get the ZIP (about 10 minutes)</summary>
+                    <ol>
+                      <li>On LinkedIn: <b>Settings &amp; Privacy</b> → <b>Data privacy</b> → <b>Get a copy of your data</b>.</li>
+                      <li>Choose <b>Want something in particular?</b> and tick Profile, Positions, Education, Skills, Certifications, Shares (your posts) and Recommendations.</li>
+                      <li>Press <b>Request archive</b>. LinkedIn emails you a link, usually within minutes (sometimes a day).</li>
+                      <li>Download the ZIP and choose it above. Do not open it first.</li>
+                    </ol>
+                  </details>
+                </div>
                 <label htmlFor="profile-text">Profile text</label>
                 <textarea id="profile-text" rows={9} spellCheck={false} placeholder={'Your name\nYour headline\nAbout\n...\nExperience\n...'} value={text} onChange={(e) => setText(e.target.value)} data-autofocus="" />
                 <p className="lhint">
@@ -303,7 +357,12 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
               </p>
               <CrewStatus kind={kind} states={states} tasks={tasks} summaries={summaries} />
               <div className="gactions">
-                <button className="gbtn primary" type="button" data-autofocus="" onClick={copySummary}>
+                {onPlay && missionCount > 0 && (
+                  <button className="gbtn primary" type="button" data-autofocus="" onClick={() => onPlay(report)}>
+                    Play {missionCount} mission{missionCount === 1 ? '' : 's'} <Icon name="right" />
+                  </button>
+                )}
+                <button className={`gbtn${onPlay && missionCount > 0 ? '' : ' primary'}`} type="button" onClick={copySummary}>
                   Copy a summary
                 </button>
                 <button className="gbtn" type="button" onClick={() => { setPhase('form'); setReport(null); }}>
@@ -313,6 +372,8 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
               {copied && <p className="gnote" role="status">Copied. The summary lists questions, rewrites and fixes, never the excerpts.</p>}
               <Brk />
             </section>
+
+            {exported && kind === 'profile' && !report.demo && <ActivityCard stats={exported.stats} />}
 
             {report.questions.length > 0 && (
               <section className="gcard brk" aria-label="Questions from Nova">

@@ -11,6 +11,8 @@ export interface AssessInput {
   text?: string;
   /** the role the person wants (kind "profile"); the only thing that may go to a search engine */
   role?: string;
+  /** numbers and dates from the person's own data export, as one line (kind "profile") */
+  activity?: string;
 }
 
 /** Runs the Orchestrator on a website or a pasted profile. Calls onLog for every line, and resolves with the report. */
