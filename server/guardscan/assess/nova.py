@@ -108,10 +108,8 @@ class AdkNova:
     the tests use a fake model, so they need no key."""
 
     def __init__(self, killswitch: KillSwitch, model: str | None = None, keys: list[str] | None = None) -> None:
-        import os
-
         self._kill = killswitch
-        self._model = model or os.environ.get("AGENTGUARD_MODEL", "gemini-2.5-flash")
+        self._model = model  # None: the chain from AGENTGUARD_MODELS (see llm.py), flash and then flash-lite
         self._keys = keys if keys is not None else gemini_keys()
 
     @property

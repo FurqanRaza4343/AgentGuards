@@ -4,7 +4,6 @@ and answers with a schema. Without a key, or when the budget is spent, the game 
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
@@ -89,7 +88,7 @@ class AdkCoach:
 
     def __init__(self, killswitch: KillSwitch, model: str | None = None, api_key: str | None = None) -> None:
         self._kill = killswitch
-        self._model = model or os.environ.get("AGENTGUARD_MODEL", "gemini-2.5-flash")
+        self._model = model  # None: the chain from AGENTGUARD_MODELS (see llm.py), flash and then flash-lite
         self._keys = [api_key] if api_key else gemini_keys()
 
     @property

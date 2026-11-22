@@ -23,7 +23,7 @@ repository, a public website, or a profile that a person pasted. Two languages, 
 npm install && npm test              # 212 vitest tests: scenarios, reducer, scoring, missions, the Python contracts
 npm run build                        # type-check + production build
 cd server && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Windows; bin/ on Linux
-cd server && python -m pytest        # 400 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
+cd server && python -m pytest        # 415 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
 python -m guardscan.cli dir .. --repo owner/name --offline --fail-on high --ignore-file ../.agentguard-ignore   # scan this repo
 python -m guardscan.cli site example.com                      # read a website passively
 python -m guardscan.cli profile --file p.txt --role "..."      # review a pasted profile

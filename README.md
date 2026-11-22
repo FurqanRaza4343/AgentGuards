@@ -161,7 +161,7 @@ For real runs, start the scanner in a second terminal (Python 3.11 or newer; the
 cd server
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt        # .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                           # 400 tests, no network and no key needed
+.venv/Scripts/python -m pytest                           # 415 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
