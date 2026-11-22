@@ -113,6 +113,33 @@ def _backup_client() -> httpx.AsyncClient:  # replaced in tests
     return httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False)
 
 
+def _fit(value: Any, node: dict[str, Any], defs: dict[str, Any]) -> Any:
+    """Cuts strings and lists down to the limits the schema states. Another provider has no way to be told these limits as firmly as
+    Gemini, and an answer that is a few characters too long should be shortened, not thrown away."""
+    if "$ref" in node:
+        node = defs.get(node["$ref"].rsplit("/", 1)[-1], {})
+    if "anyOf" in node:  # an optional field: use the branch that is not null
+        node = next((n for n in node["anyOf"] if n.get("type") != "null"), {})
+    if isinstance(value, str):
+        limit = node.get("maxLength")
+        return value[:limit] if isinstance(limit, int) else value
+    if isinstance(value, list):
+        limit = node.get("maxItems")
+        items = value[:limit] if isinstance(limit, int) else value
+        return [_fit(v, node.get("items", {}), defs) for v in items]
+    if isinstance(value, dict):
+        props = node.get("properties", {})
+        return {k: _fit(v, props.get(k, {}), defs) for k, v in value.items()}
+    return value
+
+
+def parse_backup_answer(text: str, schema: type[BaseModel]) -> Any:
+    """Validates the backup's answer, after fitting it to the schema's length limits."""
+    data = json.loads(text)
+    spec = schema.model_json_schema()
+    return schema.model_validate(_fit(data, spec, spec.get("$defs", {})))
+
+
 async def _run_backup(instruction: str, prompt: str, schema: type[BaseModel]) -> str:
     """One chat-completion call to the operator's backup provider, in JSON mode. The operator chooses the address (an environment
     variable), so no user input ever becomes an address here. Nothing is logged."""
@@ -127,6 +154,13 @@ async def _run_backup(instruction: str, prompt: str, schema: type[BaseModel]) ->
         "max_tokens": 6000,
         "temperature": 0.3,
     }
+    # Provider-specific request settings, chosen by the operator (for example to switch off a slow "thinking" mode): a JSON object in AI_EXTRA_JSON
+    try:
+        extra = json.loads(os.environ.get("AI_EXTRA_JSON", "") or "{}")
+    except ValueError:
+        extra = {}
+    if isinstance(extra, dict):
+        body.update({k: v for k, v in extra.items() if k not in {"model", "messages", "stream"}})
     async with _backup_client() as client:
         resp = await client.post(f"{base}/chat/completions", json=body, headers={"Authorization": f"Bearer {os.environ['AI_API_KEY'].strip()}"})
     if resp.status_code == 429:
@@ -184,7 +218,7 @@ async def run_structured_with_source(
         if _cooldown.get(slot, 0.0) <= time.monotonic():
             try:
                 text = await asyncio.wait_for(_run_backup(instruction, prompt, schema), backup_timeout)
-                return schema.model_validate_json(text), "backup"
+                return parse_backup_answer(text, schema), "backup"
             except Exception as exc:
                 last = exc
                 if _is_quota(exc):

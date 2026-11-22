@@ -96,7 +96,7 @@ and `hygiene`. Several rules also produce a **benign** match, the safe form of t
 ```bash
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt     # Windows; use .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                        # 423 tests, no network and no key needed
+.venv/Scripts/python -m pytest                        # 425 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -144,7 +144,7 @@ entries are reported. The web service never reads such a file from a repository 
 
 Verified:
 
-- the 423 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
+- the 425 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
   with a bad and a good case, the pipeline, the Orchestrator with fake models and fake search, the HTTP interface, the CLI);
 - the pinned `requirements.txt` installs into a clean Python 3.11 environment and the suite passes there;
 - **Gemini, live, on 2026-11-22:** the Coach for the repository demo (prose kept for 12 of 13 findings), and Nova's questions and

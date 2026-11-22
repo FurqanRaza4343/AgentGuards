@@ -223,3 +223,35 @@ async def test_a_backup_that_is_out_of_quota_or_answers_badly_is_an_error_and_a_
 async def test_run_structured_still_returns_just_the_answer(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
     script(monkeypatch, {("gemini-2.5-flash", "k1"): '{"word": "plain"}'})
     assert (await llm.run_structured(name="t", prompt="p", schema=Answer, keys=["k1"])).word == "plain"
+
+
+def test_an_answer_that_is_too_long_is_cut_to_the_schemas_limits_not_thrown_away() -> None:
+    from pydantic import Field
+
+    class Item(BaseModel):
+        text: str = Field(max_length=10)
+        note: str | None = Field(default=None, max_length=5)
+
+    class Batch(BaseModel):
+        items: list[Item] = Field(max_length=2)
+        title: str = Field(max_length=8)
+
+    answer = llm.parse_backup_answer('{"items": [{"text": "0123456789ABC", "note": "toolongnote"}, {"text": "ok"}, {"text": "third"}], "title": "a very long title"}', Batch)
+    assert [i.text for i in answer.items] == ["0123456789", "ok"] and answer.items[0].note == "toolo" and answer.title == "a very l"
+    with pytest.raises(Exception):
+        llm.parse_backup_answer('{"items": [{"nope": 1}], "title": "x"}', Batch)  # a missing field is still an error
+
+
+async def test_extra_request_settings_from_the_environment_reach_the_backup_but_cannot_replace_the_prompt(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("AI_EXTRA_JSON", '{"thinking": {"type": "disabled"}, "messages": [], "model": "evil", "stream": true}')
+    script(monkeypatch, {})
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(__import__("json").loads(request.content))
+        return chat_answer('{"word": "x"}')
+
+    backup_server(monkeypatch, handler)
+    await ask(keys=[])
+    body = seen[0]
+    assert body["thinking"] == {"type": "disabled"} and body["model"] == "some-model" and body["messages"] and "stream" not in body
