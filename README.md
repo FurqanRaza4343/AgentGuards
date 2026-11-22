@@ -122,6 +122,21 @@ done). You also earn bonus points for each real red flag you found yourself.
 
 ## Run it
 
+**The easiest way: Docker.** One command starts the site, the service and a private SearXNG for the search checks:
+
+```bash
+cp .env.example .env            # then set SEARXNG_SECRET (any long random value); GEMINI_API_KEY is optional
+docker compose up -d --build    # if your .env is in the folder above:  docker compose --env-file ../.env up -d --build
+# open http://127.0.0.1:8080    (#site for a website, #profile for a profile, #analyze for a repository)
+docker compose down             # stop it
+```
+
+The container runs as a non-root user with a read-only filesystem, and both ports are published on 127.0.0.1 only. Starting takes
+about 40 seconds (the model library is slow to import). Without a Gemini key, or when its free quota runs out, the questions come
+from templates.
+
+**Without Docker** (to work on the code):
+
 ```bash
 npm install
 npm run dev          # http://127.0.0.1:5173  (the campaign and the demo work with just this)
