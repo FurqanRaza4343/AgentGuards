@@ -23,7 +23,7 @@ repository, a public website, or a profile that a person pasted. Two languages, 
 npm install && npm test              # 212 vitest tests: scenarios, reducer, scoring, missions, the Python contracts
 npm run build                        # type-check + production build
 cd server && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Windows; bin/ on Linux
-cd server && python -m pytest        # 415 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
+cd server && python -m pytest        # 423 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
 python -m guardscan.cli dir .. --repo owner/name --offline --fail-on high --ignore-file ../.agentguard-ignore   # scan this repo
 python -m guardscan.cli site example.com                      # read a website passively
 python -m guardscan.cli profile --file p.txt --role "..."      # review a pasted profile
@@ -52,7 +52,8 @@ node tools/e2e-assess.mjs                      # the Orchestrator on a planted w
 5c. **The model sees only wrapped, cleaned, masked text**, and what it returns is checked (`assess/nova.py`: ids exist, quotes
    are in the owner's text, no links, no commands, nothing addressed to an AI reader). Only a site's own name or a typed role
    may go to the search server, never a pasted profile or a person's name. Never print or log a key (`.env` is read by
-   `envfile.py`, which returns names only).
+   `envfile.py`, which returns names only). Text that the optional backup provider wrote is **never** labelled as Gemini's
+   (`NovaResult.source`, `AssessReport.backup`): say who wrote it.
 6. **Game scoring lives in code, with invariants**: `src/game/validate.ts` runs on every authored and generated
    scenario (best path reaches Guardian; blocking everything or allowing everything never does). If you change a
    template or a point value, `npm test` will tell you what broke.

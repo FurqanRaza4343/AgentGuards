@@ -30,6 +30,10 @@ services:
     environment:
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       GEMINI_API_KEY2: "${GEMINI_API_KEY2:-}"
+      # optional backup model, used only when no Gemini model answers (see .env.example)
+      AI_API_KEY: "${AI_API_KEY:-}"
+      AI_BASE_URL: "${AI_BASE_URL:-}"
+      AI_MODEL: "${AI_MODEL:-}"
       SEARXNG_URL: "http://searxng:8080"
       # Only the proxy can reach 127.0.0.1:8280, and it sets X-Forwarded-For to the real client address,
       # so the per-address and per-site rate limits work.

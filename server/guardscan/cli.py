@@ -30,6 +30,7 @@ from .demo import SHA, write_demo
 from .demo_site import DEMO_HOST, DEMO_ROLE, demo_profile_text, mock_client_factory, serve_forever
 from .envfile import gemini_keys, load_env
 from .guard.budget import KillSwitch
+from .llm import backup_configured
 from .pipeline import Services, scan, scan_dir
 from .tools.osv import OsvClient
 from .tools.web import WebFetcher
@@ -47,7 +48,7 @@ def _write(report: dict[str, Any], out: str | None) -> None:
 
 
 def _coach(model: bool):  # type: ignore[no-untyped-def]
-    if model and not gemini_keys():
+    if model and not (gemini_keys() or backup_configured()):
         raise SystemExit("--model needs GEMINI_API_KEY (in the environment or a .env file)")
     return AdkCoach(KillSwitch()) if model else NullCoach()
 
@@ -64,7 +65,7 @@ async def _demo(out: str | None, offline: bool, model: bool = False) -> None:
 # ------------------------------------------------------------------ website and profile
 
 def _assess_services(model: bool, fetcher=None) -> AssessServices:  # type: ignore[no-untyped-def]
-    if model and not gemini_keys():
+    if model and not (gemini_keys() or backup_configured()):
         raise SystemExit("--model needs GEMINI_API_KEY (in the environment or a .env file)")
     kill = KillSwitch()
     svc = AssessServices(search=SearxClient.from_env(), nova=AdkNova(kill) if model else NullNova(), kill=kill)

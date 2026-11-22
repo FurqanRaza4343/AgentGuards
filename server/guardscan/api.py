@@ -27,6 +27,7 @@ from .assess.orchestrator import AssessServices, assess
 from .assess.search import SearxClient
 from .coach import AdkCoach, NullCoach
 from .envfile import gemini_keys, load_env
+from .llm import backup_configured
 from .guard.budget import KillSwitch, RateLimiter
 from .pipeline import Services, scan
 from .tools.github import DirSource, FetchError, GithubSource
@@ -63,13 +64,13 @@ def default_assess_services(kill: KillSwitch | None = None) -> AssessServices:
         pace = float(os.environ.get("AGENTGUARD_PACE", "0.45"))
     except ValueError:
         pace = 0.45
-    return AssessServices(search=SearxClient.from_env(), nova=AdkNova(kill) if gemini_keys() else NullNova(), kill=kill, pace=max(0.0, min(pace, 2.0)))
+    return AssessServices(search=SearxClient.from_env(), nova=AdkNova(kill) if (gemini_keys() or backup_configured()) else NullNova(), kill=kill, pace=max(0.0, min(pace, 2.0)))
 
 
 def default_services() -> Services:
     """Real GitHub and OSV. A local directory replaces GitHub only when explicitly asked, for tests and the demo."""
     kill = KillSwitch()
-    coach = AdkCoach(kill) if gemini_keys() else NullCoach()
+    coach = AdkCoach(kill) if (gemini_keys() or backup_configured()) else NullCoach()
     svc = Services(source=GithubSource(token=os.environ.get("GITHUB_TOKEN") or None), osv=OsvClient(), coach=coach, kill=kill)
     test_dir = os.environ.get("AGENTGUARD_TEST_SOURCE_DIR")
     if test_dir:

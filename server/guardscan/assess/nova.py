@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from ..envfile import gemini_keys
 from ..guard.budget import Budget, BudgetExceeded, KillSwitch
 from ..guard.inject import find_injections, strip_hidden, wrap_untrusted
-from ..llm import LlmUnavailable, run_structured
+from ..llm import LlmUnavailable, backup_configured, run_structured_with_source
 from .models import AFinding, Improvement, Question
 
 RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -67,6 +67,12 @@ class NovaBatch(BaseModel):
     improvements: list[IItem] = Field(max_length=8)
 
 
+class NovaResult(NovaBatch):
+    """What `AdkNova.write` returns: the answer plus who wrote it, "gemini" or "backup", so that the report can say so truthfully."""
+
+    source: str = "gemini"
+
+
 class Nova(Protocol):
     @property
     def available(self) -> bool: ...
@@ -114,10 +120,10 @@ class AdkNova:
 
     @property
     def available(self) -> bool:
-        return bool(self._keys) and self._kill.allow_llm()
+        return (bool(self._keys) or backup_configured()) and self._kill.allow_llm()
 
     async def write(self, brief: Brief, budget: Budget) -> NovaBatch:
-        if not self._keys:
+        if not self._keys and not backup_configured():
             raise NovaUnavailable("no API key is configured")
         if not self._kill.allow_llm():
             raise NovaUnavailable("the model is switched off or the daily cap is reached")
@@ -127,9 +133,10 @@ class AdkNova:
             raise NovaUnavailable(str(exc)) from exc
         self._kill.record_llm()
         try:
-            return await run_structured(name="nova", prompt=build_prompt(brief), schema=NovaBatch, keys=self._keys, model=self._model, instruction=NOVA_RULES)
+            batch, source = await run_structured_with_source(name="nova", prompt=build_prompt(brief), schema=NovaBatch, keys=self._keys, model=self._model, instruction=NOVA_RULES)
         except LlmUnavailable as exc:
             raise NovaUnavailable(str(exc)) from exc
+        return NovaResult(**batch.model_dump(), source=source)
 
 
 # ------------------------------------------------------------------ what goes to the model

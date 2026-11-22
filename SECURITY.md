@@ -44,7 +44,8 @@ runs no scripts, and stores nothing. If it did something else, please report it.
 - It reads files and **never runs them**: no install, no build, no code execution.
 - Everything read from a repository is **data**. Instructions found in it are not followed, and they are reported as a
   finding.
-- Only masked, short excerpts are sent to a language model, and only when a key is configured. For a pasted profile,
+- Only masked, short excerpts are sent to a language model, and only when a key is configured: to Gemini, and, only if the operator configured
+  one (`AI_API_KEY`), to a backup provider when no Gemini model answers. The interface says when the backup wrote the text. For a pasted profile,
   contact details are replaced first. A search server (optional) only ever receives a site's own name or the role a person typed.
 - LinkedIn and other logged-in sites are never fetched. A person pastes their own text.
 - Every scan is in *third-party mode*: findings explain what and where, without attack steps, and secrets are masked.

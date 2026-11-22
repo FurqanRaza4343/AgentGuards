@@ -78,7 +78,8 @@ class AssessReport(BaseModel):
     questions: list[Question]
     improvements: list[Improvement]
     search: SearchInfo
-    model: bool  # True when Gemini wrote the questions and improvements
+    model: bool  # True when a language model wrote the questions and improvements (False: templates)
+    backup: bool = False  # True when that model was the backup provider, not Gemini: the interface must say so
     runLog: list[LogLine]
     disclaimers: list[str]
     demo: bool | None = None

@@ -125,3 +125,101 @@ async def test_the_deadline_stops_a_slow_chain(monkeypatch: pytest.MonkeyPatch) 
 def test_a_key_is_never_stored_only_a_fingerprint_of_it() -> None:
     fp = llm._fingerprint("AIza-super-secret-value")
     assert "secret" not in fp and len(fp) == 12 and fp == llm._fingerprint("AIza-super-secret-value")
+
+
+# ====================================================================== the optional backup provider
+
+import httpx  # noqa: E402
+
+
+@pytest.fixture()
+def backup_env(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("AI_API_KEY", "test-backup-key-1234567890")
+    monkeypatch.setenv("AI_BASE_URL", "https://backup.example/v1")
+    monkeypatch.setenv("AI_MODEL", "some-model")
+
+
+def backup_server(monkeypatch: pytest.MonkeyPatch, handler):  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(llm, "_backup_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+
+
+def chat_answer(content: str) -> httpx.Response:
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+
+def test_the_backup_needs_a_key_a_model_and_a_plain_http_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("AI_API_KEY", "AI_BASE_URL", "AI_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    assert not llm.backup_configured()
+    monkeypatch.setenv("AI_API_KEY", "k" * 20)
+    monkeypatch.setenv("AI_MODEL", "m")
+    monkeypatch.setenv("AI_BASE_URL", "file:///etc/passwd")
+    assert not llm.backup_configured()
+    monkeypatch.setenv("AI_BASE_URL", "https://user:pw@backup.example")
+    assert not llm.backup_configured()
+    monkeypatch.setenv("AI_BASE_URL", "https://backup.example/v1")
+    assert llm.backup_configured()
+
+
+async def test_the_backup_is_asked_only_after_every_gemini_pair_failed_and_the_caller_is_told(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    script(monkeypatch, {})  # every Gemini pair is out of quota
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return chat_answer('{"word": "from the backup"}')
+
+    backup_server(monkeypatch, handler)
+    answer, source = await llm.run_structured_with_source(name="t", prompt="the prompt", schema=Answer, keys=["k1"])
+    assert answer.word == "from the backup" and source == "backup"
+    body = __import__("json").loads(seen[0].content)
+    assert seen[0].url.path == "/v1/chat/completions" and seen[0].headers["authorization"] == "Bearer test-backup-key-1234567890"
+    assert body["response_format"] == {"type": "json_object"} and body["model"] == "some-model"
+    assert "JSON" in body["messages"][0]["content"] and "word" in body["messages"][0]["content"] and body["messages"][1]["content"] == "the prompt"
+
+
+async def test_the_backup_is_not_touched_while_gemini_answers(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    script(monkeypatch, {("gemini-2.5-flash", "k1"): '{"word": "gemini"}'})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("the backup must not be called when Gemini answers")
+
+    backup_server(monkeypatch, handler)
+    answer, source = await llm.run_structured_with_source(name="t", prompt="p", schema=Answer, keys=["k1"])
+    assert answer.word == "gemini" and source == "gemini"
+
+
+async def test_without_any_gemini_key_the_backup_can_still_answer(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    backup_server(monkeypatch, lambda request: chat_answer('{"word": "only backup"}'))
+    answer, source = await llm.run_structured_with_source(name="t", prompt="p", schema=Answer, keys=[])
+    assert (answer.word, source) == ("only backup", "backup")
+
+
+async def test_a_backup_that_is_out_of_quota_or_answers_badly_is_an_error_and_a_cooldown(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    script(monkeypatch, {})
+    calls: list[int] = []
+
+    def limited(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(429, json={"error": "slow down"})
+
+    backup_server(monkeypatch, limited)
+    with pytest.raises(llm.LlmUnavailable):
+        await ask()
+    assert len(calls) == 1
+    with pytest.raises(llm.LlmUnavailable, match="out of quota for now"):
+        await ask()
+    assert len(calls) == 1  # cooling down: not asked again
+
+    llm._cooldown.clear()
+    backup_server(monkeypatch, lambda request: chat_answer("this is not json"))
+    with pytest.raises(llm.LlmUnavailable):
+        await ask()
+    backup_server(monkeypatch, lambda request: httpx.Response(500))
+    with pytest.raises(llm.LlmUnavailable):
+        await ask()
+
+
+async def test_run_structured_still_returns_just_the_answer(monkeypatch: pytest.MonkeyPatch, backup_env) -> None:  # type: ignore[no-untyped-def]
+    script(monkeypatch, {("gemini-2.5-flash", "k1"): '{"word": "plain"}'})
+    assert (await llm.run_structured(name="t", prompt="p", schema=Answer, keys=["k1"])).word == "plain"

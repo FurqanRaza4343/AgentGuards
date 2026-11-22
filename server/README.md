@@ -96,7 +96,7 @@ and `hygiene`. Several rules also produce a **benign** match, the safe form of t
 ```bash
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt     # Windows; use .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                        # 415 tests, no network and no key needed
+.venv/Scripts/python -m pytest                        # 423 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -126,6 +126,7 @@ entries are reported. The web service never reads such a file from a repository 
 | `AGENTGUARD_MODELS` | `gemini-2.5-flash,gemini-2.5-flash-lite` | The models to try, in order. The free tier counts quota per model and per key, so when `flash` is used up for the day `flash-lite` (its own quota) answers. A (model, key) pair that said "quota" is skipped for 5 minutes |
 | `AGENTGUARD_MODEL` | unset | One model name to try first |
 | `SEARXNG_URL` | unset | A SearXNG server (JSON format enabled) for the search checks, e.g. `http://127.0.0.1:8888` |
+| `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL` | unset | An optional **backup** language model (any OpenAI-compatible API), asked only when no Gemini model answers. The report and Nova's log say "a backup language model", never "Gemini", when it wrote the text |
 | `GITHUB_TOKEN` | unset | Optional, raises the GitHub rate limit. Never sent anywhere else |
 | `AGENTGUARD_RATE_PER_HOUR` | 6 | Runs per client address per hour |
 | `AGENTGUARD_HOST_RATE_PER_HOUR` | 3 | Runs per website per hour, whoever asks |
@@ -143,7 +144,7 @@ entries are reported. The web service never reads such a file from a repository 
 
 Verified:
 
-- the 415 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
+- the 423 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
   with a bad and a good case, the pipeline, the Orchestrator with fake models and fake search, the HTTP interface, the CLI);
 - the pinned `requirements.txt` installs into a clean Python 3.11 environment and the suite passes there;
 - **Gemini, live, on 2026-11-22:** the Coach for the repository demo (prose kept for 12 of 13 findings), and Nova's questions and

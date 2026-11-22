@@ -295,7 +295,11 @@ export function OrchestratorView({ kind, onExit }: { kind: AssessKind; onExit: (
                 {report.kind === 'site'
                   ? `${report.stats.pages} page${report.stats.pages === 1 ? '' : 's'} read (${report.stats.words} words). `
                   : `${report.stats.words} words read. `}
-                {report.model ? 'Gemini wrote the questions below, and each one was checked.' : 'The questions below come from templates (no model was used for this run).'}
+                {report.model
+                  ? report.backup
+                    ? 'A backup language model wrote the questions below (Gemini was not available), and each one was checked.'
+                    : 'Gemini wrote the questions below, and each one was checked.'
+                  : 'The questions below come from templates (no model was used for this run).'}
               </p>
               <CrewStatus kind={kind} states={states} tasks={tasks} summaries={summaries} />
               <div className="gactions">

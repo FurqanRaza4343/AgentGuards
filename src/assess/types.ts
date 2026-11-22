@@ -59,6 +59,8 @@ export interface AssessReport {
   improvements: Improvement[];
   search: { used: boolean; note: string; queries: string[] };
   model: boolean;
+  /** true when the questions were written by the backup language model, not Gemini: the page must say so */
+  backup: boolean;
   runLog: LogLine[];
   disclaimers: string[];
   demo: boolean;
@@ -146,6 +148,7 @@ export function coerceAssess(x: unknown): AssessReport | null {
     improvements,
     search: { used: search.used === true, note: str(search.note, 240), queries: Array.isArray(search.queries) ? search.queries.filter(isStr).map((q) => q.slice(0, 120)).slice(0, 6) : [] },
     model: x.model === true,
+    backup: x.backup === true,
     runLog: Array.isArray(x.runLog) ? x.runLog.flatMap((l) => (isObj(l) && isStr(l.text) ? [toLogLine(l)] : [])) : [],
     disclaimers: Array.isArray(x.disclaimers) ? x.disclaimers.filter(isStr).map((s) => s.slice(0, 400)) : [],
     demo: x.demo === true,

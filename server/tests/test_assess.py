@@ -423,3 +423,24 @@ async def test_the_client_debug_flags_are_off_by_default_and_never_contain_an_ad
         r = await c.get("/api/health", headers={"x-forwarded-for": "203.0.113.5, 172.70.0.1", "cf-connecting-ip": "203.0.113.5"})
         assert r.json()["clientDebug"] == {"xffEntries": 2, "cfConnectingIp": True, "trueClientIp": False, "xRealIp": False}
         assert "203.0.113" not in r.text
+
+
+# ====================================================================== the report says who wrote the questions
+
+async def test_text_from_the_backup_model_is_never_presented_as_geminis() -> None:
+    batch = nova_mod.NovaResult(
+        questions=[QItem(text=f"Question number {i} about what your visitors need first?") for i in range(4)], improvements=[], source="backup")
+    logs, report, _ = await run("site", {"url": DEMO_HOST}, services(nova=FakeNova(batch)))
+    assert report is not None and report["model"] is True and report["backup"] is True
+    said = " ".join(l["text"] for l in logs if l["text"].startswith("Nova:"))
+    assert "backup language model" in said and "Gemini wrote" not in said
+    assert "backup language model" in next(a for a in report["agents"] if a["id"] == "nova")["summary"]
+    assert "Gemini" not in next(a for a in report["agents"] if a["id"] == "nova")["summary"]
+
+
+async def test_text_from_gemini_and_from_templates_is_labelled_as_such() -> None:
+    gem = nova_mod.NovaResult(questions=[QItem(text=f"Question number {i} about what your visitors need first?") for i in range(4)], improvements=[], source="gemini")
+    logs, report, _ = await run("site", {"url": DEMO_HOST}, services(nova=FakeNova(gem)))
+    assert report is not None and report["model"] is True and report["backup"] is False and any("Gemini wrote" in l["text"] for l in logs)
+    logs, report, _ = await run("site", {"url": DEMO_HOST}, services())
+    assert report is not None and report["model"] is False and report["backup"] is False and not any("Gemini wrote" in l["text"] for l in logs)

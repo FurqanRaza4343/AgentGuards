@@ -76,8 +76,15 @@ describe('coerceAssess does not trust the server', () => {
     const r = coerceAssess(minimal)!;
     expect(r.stats).toEqual({ pages: 0, bytes: 0, words: 0 });
     expect(r.model).toBe(false);
+    expect(r.backup).toBe(false);
     expect(r.runLog).toEqual([]);
     expect(r.search.used).toBe(false);
+  });
+
+  it('keeps the flag that says the backup model wrote the questions, and treats anything else as false', () => {
+    expect(coerceAssess({ ...minimal, model: true, backup: true })!.backup).toBe(true);
+    expect(coerceAssess({ ...minimal, model: true, backup: 'yes' })!.backup).toBe(false);
+    expect(site.backup).toBe(false); // the baked demos were written by Gemini
   });
 
   it.each([

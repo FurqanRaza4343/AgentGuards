@@ -12,13 +12,12 @@ robot built entirely in three.js).
 
 **Live: https://agentguards.duckdns.org**
 
-- It runs always-on on a VPS behind Caddy with HTTPS, together with a private SearXNG for the search checks (see [deploy/](deploy/README.md)).
-  The same site also answers on https://agentguard.185-183-54-184.sslip.io.
-- A backup copy runs on Render's free plan (https://agentguard-oh7q.onrender.com, see `render.yaml`). It sleeps after 15 minutes without visitors,
-  needs about a minute to wake up, and has no search server.
+It runs always-on on a VPS behind Caddy with HTTPS, together with a private SearXNG for the search checks (see [deploy/](deploy/README.md)).
+The same site also answers on https://agentguard.185-183-54-184.sslip.io.
 
-These are public demos with limits: a few runs per visitor per hour, a few per website per hour, and a daily cap on model calls.
-When Gemini's free quota is used up the questions come from templates, and the recorded demos always work.
+This is a public demo with limits: a few runs per visitor per hour, a few per website per hour, and a daily cap on model calls.
+Gemini writes the questions. When Gemini's free quota is used up, an optional backup language model can answer instead (the page says
+so when that happens), and otherwise the questions come from templates. The recorded demos always work.
 
 Three things to do with it:
 
@@ -150,7 +149,7 @@ from templates.
 ```bash
 npm install
 npm run dev          # http://127.0.0.1:5173  (the campaign and the demo work with just this)
-npm test             # 212 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
+npm test             # 213 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
 npm run build        # type-check + production build into dist/
 npm run preview      # production build on http://127.0.0.1:4173 with the same strict CSP as the scanner serves
 ```
@@ -161,7 +160,7 @@ For real runs, start the scanner in a second terminal (Python 3.11 or newer; the
 cd server
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt        # .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                           # 415 tests, no network and no key needed
+.venv/Scripts/python -m pytest                           # 423 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -292,8 +291,10 @@ screen reader.
 - **SearXNG was run for real** (Docker, image pinned by digest): JSON search returned results, a site's name and a job role were
   searched through it, and a skill gap was computed from the real snippets (which are short, so the count is shown next to each
   skill: "api (4 of 40)"). `tools/e2e-assess.mjs` still uses a stand-in server, so that test needs no Docker.
-- **Gemini's free-tier quota is small.** When it runs out (or the model is overloaded) the run falls back to templates, and the
-  pre-baked demos keep working. A second key in `GEMINI_API_KEY2` is tried automatically.
+- **Gemini's free-tier quota is small, and it is counted per model and per key.** The service tries `gemini-2.5-flash`, then `gemini-2.5-flash-lite`
+  (a separate quota) with every key; if none answers, an optional backup language model (`AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`: any
+  OpenAI-compatible API) is asked last, and the report says it was not Gemini. Without any of them the questions come from templates, and the
+  pre-baked demos keep working.
 - **Only one real website has been scanned** (`example.com`). Scan your own and read the result with a critical eye: the checks
   are heuristics.
 - **Missions from website and profile findings** are not built yet. The repository findings become playable missions; website

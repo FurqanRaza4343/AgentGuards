@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from .envfile import gemini_keys
 from .guard.budget import Budget, BudgetExceeded, KillSwitch
 from .guard.inject import find_injections, strip_hidden, wrap_untrusted
-from .llm import LlmUnavailable, run_structured
+from .llm import LlmUnavailable, backup_configured, run_structured
 from .guard.mask import mask_line
 from .rules.base import is_agent_file, is_prose
 from .schemas import Finding
@@ -93,10 +93,10 @@ class AdkCoach:
 
     @property
     def available(self) -> bool:
-        return bool(self._keys) and self._kill.allow_llm()
+        return (bool(self._keys) or backup_configured()) and self._kill.allow_llm()
 
     async def enrich(self, findings: list[Finding], budget: Budget) -> dict[str, dict[str, Any]]:
-        if not self._keys:
+        if not self._keys and not backup_configured():
             raise CoachUnavailable("no API key is configured")
         if not self._kill.allow_llm():
             raise CoachUnavailable("the model is switched off or the daily cap is reached")

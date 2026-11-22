@@ -8,6 +8,10 @@ pairs, in order. With the default chain, `gemini-2.5-flash` is tried with every 
 quota) with every key. A pair that answered "quota" is skipped for a few minutes, so a run does not pay for the same
 failure again. The whole thing has a deadline, so a run never waits long for a model that is not going to answer.
 
+If nothing in that chain answers and the operator configured a backup provider (AI_API_KEY, AI_BASE_URL, AI_MODEL: any
+OpenAI-compatible API), it is asked last. The caller is told which one answered ("gemini" or "backup"), and what the
+interface shows people says so: text from the backup is never presented as Gemini's.
+
 Nothing here logs a key or a prompt.
 """
 
@@ -15,12 +19,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import time
 import uuid
 from typing import Any
+from urllib.parse import urlsplit
 
+import httpx
 from pydantic import BaseModel
 
 from .guard.inject import SYSTEM_RULES
@@ -93,7 +100,42 @@ async def _run_once(name: str, instruction: str, prompt: str, schema: type[BaseM
         return text
 
 
-async def run_structured(
+# ------------------------------------------------------------------ an optional backup provider (any OpenAI-compatible API)
+
+def backup_configured() -> bool:
+    """True when AI_API_KEY, AI_BASE_URL and AI_MODEL are all set and the address is a plain http(s) address."""
+    key, base, model = (os.environ.get(n, "").strip() for n in ("AI_API_KEY", "AI_BASE_URL", "AI_MODEL"))
+    parts = urlsplit(base)
+    return bool(key and model and parts.scheme in {"http", "https"} and parts.hostname and not parts.username)
+
+
+def _backup_client() -> httpx.AsyncClient:  # replaced in tests
+    return httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False)
+
+
+async def _run_backup(instruction: str, prompt: str, schema: type[BaseModel]) -> str:
+    """One chat-completion call to the operator's backup provider, in JSON mode. The operator chooses the address (an environment
+    variable), so no user input ever becomes an address here. Nothing is logged."""
+    base = os.environ["AI_BASE_URL"].strip().rstrip("/")
+    body = {
+        "model": os.environ["AI_MODEL"].strip(),
+        "messages": [
+            {"role": "system", "content": f"{instruction}\nAnswer with ONE JSON object that matches this JSON schema, and nothing else: {json.dumps(schema.model_json_schema())}"},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 6000,
+        "temperature": 0.3,
+    }
+    async with _backup_client() as client:
+        resp = await client.post(f"{base}/chat/completions", json=body, headers={"Authorization": f"Bearer {os.environ['AI_API_KEY'].strip()}"})
+    if resp.status_code == 429:
+        raise RuntimeError("429 quota")
+    resp.raise_for_status()
+    return str(resp.json()["choices"][0]["message"].get("content") or "")
+
+
+async def run_structured_with_source(
     *,
     name: str,
     prompt: str,
@@ -103,38 +145,58 @@ async def run_structured(
     instruction: str = SYSTEM_RULES,
     timeout: float = 30.0,
     deadline: float = 55.0,
-) -> Any:
-    """Asks the model and returns the answer parsed into `schema`. Raises LlmUnavailable.
+    backup_timeout: float = 75.0,
+) -> tuple[Any, str]:
+    """Asks the model and returns (answer parsed into `schema`, who answered): "gemini" or "backup". Raises LlmUnavailable.
 
-    `timeout` bounds one attempt, `deadline` bounds all of them together."""
-    if not keys:
-        raise LlmUnavailable("no API key is configured")
+    Gemini is always tried first, with every (model, key) pair. Only when none of them answers is the backup provider
+    (if one is configured) asked, and the caller is told, so that what it shows people says who really wrote the text.
+    `timeout` bounds one Gemini attempt, `deadline` all the Gemini attempts together."""
     models = [model] if isinstance(model, str) else (model or model_chain())
     started = time.monotonic()
     last: BaseException | None = None
     tried = 0
-    for m in models:
-        for key in keys:
-            slot = (m, _fingerprint(key))
-            if _cooldown.get(slot, 0.0) > time.monotonic():
-                continue  # it said "quota" a moment ago
-            remaining = deadline - (time.monotonic() - started)
-            if remaining < 3:
-                raise LlmUnavailable("the model did not answer in time")
-            tried += 1
+    if keys:
+        for m in models:
+            for key in keys:
+                slot = (m, _fingerprint(key))
+                if _cooldown.get(slot, 0.0) > time.monotonic():
+                    continue  # it said "quota" a moment ago
+                remaining = deadline - (time.monotonic() - started)
+                if remaining < 3:
+                    break
+                tried += 1
+                try:
+                    text = await asyncio.wait_for(_run_once(name, instruction, prompt, schema, m, key), min(timeout, remaining))
+                except LlmUnavailable:
+                    raise
+                except Exception as exc:  # quota, network, an unknown model name: try the next pair
+                    last = exc
+                    if _is_quota(exc):
+                        _cooldown[slot] = time.monotonic() + COOLDOWN_SECONDS
+                    continue
+                try:
+                    return schema.model_validate_json(text), "gemini"
+                except ValueError as exc:
+                    last = exc
+    if backup_configured():
+        slot = ("backup", _fingerprint(os.environ["AI_API_KEY"]))
+        if _cooldown.get(slot, 0.0) <= time.monotonic():
             try:
-                text = await asyncio.wait_for(_run_once(name, instruction, prompt, schema, m, key), min(timeout, remaining))
-            except LlmUnavailable:
-                raise
-            except Exception as exc:  # quota, network, an unknown model name: try the next pair
+                text = await asyncio.wait_for(_run_backup(instruction, prompt, schema), backup_timeout)
+                return schema.model_validate_json(text), "backup"
+            except Exception as exc:
                 last = exc
                 if _is_quota(exc):
                     _cooldown[slot] = time.monotonic() + COOLDOWN_SECONDS
-                continue
-            try:
-                return schema.model_validate_json(text)
-            except ValueError as exc:
-                last = exc
+            tried += 1
+    if not keys and not backup_configured():
+        raise LlmUnavailable("no API key is configured")
     if tried == 0:
         raise LlmUnavailable("every model is out of quota for now (it is tried again in a few minutes)")
     raise LlmUnavailable(f"the model did not answer ({last.__class__.__name__ if last else 'no answer'})")
+
+
+async def run_structured(**kw: Any) -> Any:
+    """Like run_structured_with_source, for callers that only need the answer."""
+    return (await run_structured_with_source(**kw))[0]

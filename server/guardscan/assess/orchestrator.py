@@ -371,13 +371,13 @@ async def _site(hub: Hub, url_text: str, svc: AssessServices, budget: Budget) ->
     else:
         facts, corpus = "(no page content was read)", ""
     brief = Brief(kind="site", target=host, role="", facts=facts, corpus=corpus, findings=findings, strengths=strengths)
-    questions, improvements, used = await _nova_step(hub, svc, budget, brief)
-    agents = [AgentSummary(id="nova", role="Orchestrator", task="Plan, delegate, ask", summary=f"{_plural(len(questions), 'question')} and {_plural(len(improvements), 'improvement')}" + (" written with Gemini." if used else " written from templates."), findingIds=[])]
+    questions, improvements, used, backup = await _nova_step(hub, svc, budget, brief)
+    agents = [AgentSummary(id="nova", role="Orchestrator", task="Plan, delegate, ask", summary=f"{_plural(len(questions), 'question')} and {_plural(len(improvements), 'improvement')}" + ((" written by a backup language model." if backup else " written with Gemini.") if used else " written from templates."), findingIds=[])]
     agents += [run.summaries[k] for k in ("data", "purchasing", "finance") if k in run.summaries]
     hub.log("Done. The report is ready.", "good")
     return AssessReport(
         kind="site", target=host, generatedAt=_now(), stats=run.stats, agents=agents, findings=findings, strengths=list(dict.fromkeys(strengths)),
-        questions=questions, improvements=improvements, search=run.search_info, model=used,
+        questions=questions, improvements=improvements, search=run.search_info, model=used, backup=backup,
         runLog=[LogLine.model_validate(line) for line in hub.trail], disclaimers=SITE_DISCLAIMERS,
     )
 
@@ -496,14 +496,14 @@ async def _profile(hub: Hub, text: str, role: str | None, svc: AssessServices, b
     facts_raw = f"Headline: {p.headline if p else ''}\nAbout:\n{(p.about if p else '')[:1500]}\nExperience:\n{(p.experience if p else '')[:1800]}\nSkills: {', '.join(p.skills[:25]) if p else ''}"
     facts = prepare_untrusted(prof.redact_for_model(facts_raw), "profile", 4200)
     brief = Brief(kind="profile", target="a professional profile", role=target_role, facts=facts, corpus=clean, findings=findings, strengths=strengths)
-    questions, improvements, used = await _nova_step(hub, svc, budget, brief)
-    agents = [AgentSummary(id="nova", role="Orchestrator", task="Plan, delegate, ask", summary=f"{_plural(len(questions), 'question')} and {_plural(len(improvements), 'improvement')}" + (" written with Gemini." if used else " written from templates."), findingIds=[])]
+    questions, improvements, used, backup = await _nova_step(hub, svc, budget, brief)
+    agents = [AgentSummary(id="nova", role="Orchestrator", task="Plan, delegate, ask", summary=f"{_plural(len(questions), 'question')} and {_plural(len(improvements), 'improvement')}" + ((" written by a backup language model." if backup else " written with Gemini.") if used else " written from templates."), findingIds=[])]
     agents += [run.summaries[k] for k in ("data", "purchasing", "finance") if k in run.summaries]
     hub.log("Done. The report is ready.", "good")
     return AssessReport(
         kind="profile", target="Pasted profile" + (f" · {target_role}" if target_role else ""), generatedAt=_now(),
         stats=AssessStats(pages=0, bytes=len(clean.encode("utf-8")), words=len(clean.split())), agents=agents, findings=findings,
-        strengths=list(dict.fromkeys(strengths)), questions=questions, improvements=improvements, search=run.search_info, model=used,
+        strengths=list(dict.fromkeys(strengths)), questions=questions, improvements=improvements, search=run.search_info, model=used, backup=backup,
         runLog=[LogLine.model_validate(line) for line in hub.trail], disclaimers=PROFILE_DISCLAIMERS,
     )
 
@@ -513,6 +513,7 @@ async def _profile(hub: Hub, text: str, role: str | None, svc: AssessServices, b
 async def _nova_step(hub: Hub, svc: AssessServices, budget: Budget, brief: Brief):  # type: ignore[no-untyped-def]
     hub.log(f"Nova: collecting {_plural(len(brief.findings), 'finding')} from the three specialists and writing questions", "info", "nova", state="thinking", task="Writing questions")
     used = False
+    backup = False
     questions: list = []
     improvements: list = []
     try:
@@ -521,8 +522,10 @@ async def _nova_step(hub: Hub, svc: AssessServices, budget: Budget, brief: Brief
         if len(questions) < 3:
             raise NovaUnavailable("the model's answer did not pass the checks")
         used = True
+        backup = getattr(batch, "source", "gemini") != "gemini"
+        who = "A backup language model (Gemini was not available)" if backup else "Gemini"
         kept = f"{len(questions)} of {len(batch.questions)} questions and {len(improvements)} of {len(batch.improvements)} rewrites passed the checks"
-        hub.log(f"Nova: Gemini wrote the questions. {kept}; anything that quoted text not on the page, or contained links or code, was dropped.", "good", "nova")
+        hub.log(f"Nova: {who} wrote the questions. {kept}; anything that quoted text not on the page, or contained links or code, was dropped.", "good", "nova")
     except NovaUnavailable as exc:
         hub.log(f"Nova: no model this time ({exc}). The questions come from templates.", "info", "nova")
     except BudgetExceeded as exc:
@@ -532,7 +535,7 @@ async def _nova_step(hub: Hub, svc: AssessServices, budget: Budget, brief: Brief
     if not used:
         questions, improvements = fallback(brief.kind, brief.findings)
     hub.log(f"Nova: {_plural(len(questions), 'question')} and {_plural(len(improvements), 'improvement')} are ready.", "good", "nova", state="success", task="Done")
-    return questions, improvements, used
+    return questions, improvements, used, backup
 
 
 # ====================================================================== entry point
