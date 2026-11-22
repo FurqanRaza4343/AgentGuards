@@ -35,6 +35,9 @@ RUN pip install -r requirements.txt
 COPY server/guardscan ./guardscan
 COPY server/demo ./demo
 COPY --from=web /app/dist /srv/site
+# The files are copied as root and the process runs as an unprivileged user. Whatever mode they had in the build context
+# (a clone made with a strict umask, for example) must not decide whether the app can read its own code.
+RUN chmod -R a+rX /srv/guardscan /srv/demo /srv/site
 
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin agentguard
 USER 10001
