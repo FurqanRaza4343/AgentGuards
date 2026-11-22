@@ -1,0 +1,12 @@
+node_modules
+dist
+shots
+shots-*
+*.log
+.env
+.env.*
+!.env.example
+# Python
+server/.venv
+**/__pycache__
+.pytest_cache

@@ -1,0 +1,32 @@
+AgentGuard
+Built for DevFest Pakistan 2026.
+
+Design ideas and credit
+-----------------------
+Several design decisions in the scanner were learned from reading the public documentation and source layout of the
+Obscura project (https://github.com/h4ckf0r0day/obscura, Apache License 2.0):
+
+  - one deny-set of network ranges shared by the literal-address check and the DNS-resolution check;
+  - hardening a tool server (loopback by default, a token of at least 32 bytes for anything else, an Origin allow-list,
+    bounds on request size);
+  - a non-root container for a process that reads untrusted input;
+  - CI hygiene (actions pinned to full commit hashes, minimal permissions, concurrency and timeouts);
+  - accepted findings that must carry a written reason;
+  - an AGENTS.md and a SKILL.md for AI agents;
+  - fixtures that come in bad and good pairs, and keeping hidden page content away from the model.
+
+No Obscura source code is included in this project. The implementations here were written from scratch in Python and
+TypeScript. We did not adopt its stealth / anti-detection features.
+
+Third-party software
+--------------------
+React, ReactDOM (MIT), three.js (MIT), Vite (MIT), Vitest (MIT), FastAPI (MIT), Starlette (BSD-3-Clause),
+Uvicorn (BSD-3-Clause), Pydantic (MIT), httpx / httpcore (BSD-3-Clause), Google Agent Development Kit (Apache-2.0).
+Fonts IBM Plex Mono and Schibsted Grotesk are distributed under the SIL Open Font License 1.1.
+Vulnerability data comes from OSV.dev (https://osv.dev) and keeps its own licenses.
+
+Optional services (not included, only called over HTTP)
+-------------------------------------------------------
+SearXNG (https://github.com/searxng/searxng, AGPL-3.0) can be run separately and queried through its JSON API for the
+search checks. No SearXNG code is part of this project. The files in searxng/ are only configuration for running it.
+Gemini is called through the Google Agent Development Kit with your own API key.

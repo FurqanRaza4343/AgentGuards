@@ -1,0 +1,14 @@
+node_modules
+dist
+shots
+.git
+.gitignore
+*.log
+tools/_*.mjs
+# the Python side is copied explicitly in the Dockerfile
+server/.venv
+server/.pytest_cache
+server/tests
+**/__pycache__
+.env
+.env.*

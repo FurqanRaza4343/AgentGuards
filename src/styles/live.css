@@ -1,0 +1,94 @@
+/* AgentGuard Live: the scanner screens. They reuse the game cards, log and badges. */
+.lform label{display:block;margin:16px 0 6px;font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.lform input[type="text"]{width:100%;height:46px;padding:0 14px;border:1px solid var(--ink);border-radius:0;background:#fff;color:var(--ink);font:400 15px/1 var(--mono)}
+.lform input[type="text"]:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.lform input::placeholder{color:rgba(20,20,20,.38)}
+.lform .lcheck{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;font:400 13.5px/1.45 var(--sans);text-transform:none;letter-spacing:0;color:var(--ink)}
+.lform .lcheck input{flex:none;width:17px;height:17px;margin-top:2px;accent-color:#141414}
+.gbtn:disabled{opacity:.4;cursor:not-allowed}
+.gbtn:disabled:hover{background:transparent;color:var(--ink)}
+.gbtn.primary:disabled:hover{background:var(--ink);color:var(--bg)}
+.lerr{color:var(--bad)}
+
+.lsev{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}
+.lsev span{padding:4px 9px;border:1px solid var(--hair);font:500 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.lsev .critical,.lsev .high{border-color:var(--bad);background:rgba(217,45,32,.08);color:var(--bad)}
+.lsev .medium{border-color:var(--warn);background:rgba(180,83,9,.08);color:var(--warn)}
+
+.lfind{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.lfind li{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:start;font-size:14px;line-height:1.35}
+.lfind .sev{padding:3px 6px;border:1px solid var(--hair);font:500 10px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;text-align:center}
+.lfind .sev.critical,.lfind .sev.high{border-color:var(--bad);color:var(--bad)}
+.lfind .sev.medium{border-color:var(--warn);color:var(--warn)}
+.lfind b{display:block;font-weight:500}
+.lfind small{display:block;margin-top:2px;font:400 11px/1.3 var(--mono);color:var(--dim);overflow-wrap:anywhere}
+
+.lrunlog{border:1px solid var(--hair)}
+.lrunlog>summary{padding:10px 14px;cursor:pointer;font:500 11px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);list-style:none}
+.lrunlog>summary::-webkit-details-marker{display:none}
+.lrunlog>summary::before{content:"+ "}
+.lrunlog[open]>summary::before{content:"- "}
+.lrunlog>summary:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.lrunlog .glog{border-width:1px 0 0;height:220px}
+
+/* ---- the Orchestrator: website and profile */
+.lmodes{display:flex;gap:6px;margin:-4px 0 14px;flex-wrap:wrap}
+.lmodes a{padding:6px 11px;border:1px solid var(--hair);font:500 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);text-decoration:none}
+.lmodes a:hover{border-color:var(--ink);color:var(--ink)}
+.lmodes a.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.lmodes a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.lform textarea{width:100%;min-height:150px;padding:12px 14px;border:1px solid var(--ink);border-radius:0;background:#fff;color:var(--ink);font:400 13px/1.45 var(--mono);resize:vertical}
+.lform textarea:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.lform textarea::placeholder{color:rgba(20,20,20,.38)}
+.live .lhint{margin:6px 0 0;font-size:12.5px;line-height:1.45;color:var(--dim)}
+
+.lcrew{display:grid;gap:6px;margin:12px 0 4px;padding:0;list-style:none}
+.lcrew-row{display:grid;grid-template-columns:10px minmax(92px,124px) 1fr;gap:10px;align-items:start;padding:8px 10px;border:1px solid var(--hair);border-left:3px solid var(--accent)}
+.lcrew-dot{width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--dim)}
+.lcrew-row.s-working .lcrew-dot,.lcrew-row.s-thinking .lcrew-dot{background:#b45309;animation:pulse 1.2s ease-in-out infinite}
+.lcrew-row.s-success .lcrew-dot{background:var(--good)}
+.lcrew-row.s-alert .lcrew-dot,.lcrew-row.s-fail .lcrew-dot{background:var(--bad)}
+.lcrew-name b{display:block;font-size:13.5px;font-weight:500}
+.lcrew-name small{display:block;font:400 10px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
+.lcrew-task{font-size:12.5px;line-height:1.35;overflow-wrap:anywhere}
+.lcrew-state{display:block;font:500 9.5px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+
+.lcaps{position:fixed;inset:0;z-index:3;pointer-events:none}
+.lcap{position:absolute;left:0;top:0;width:132px;padding:6px 8px 7px;border:1px solid var(--hair);border-top:3px solid var(--accent);background:var(--paper-back);opacity:0;transition:opacity .3s}
+.lcap b{display:block;font-size:12.5px;font-weight:500}
+.lcap span{display:block;min-height:27px;font:400 10px/1.35 var(--mono);color:var(--dim);overflow-wrap:anywhere}
+.lcap.s-working,.lcap.s-thinking{border-color:#b45309;border-top-color:var(--accent)}
+.lcap.s-success{border-color:var(--good);border-top-color:var(--accent)}
+.lcap.s-alert,.lcap.s-fail{border-color:var(--bad);border-top-color:var(--accent)}
+
+.lq{display:grid;gap:16px;margin:8px 0 0;padding:0;list-style:none;counter-reset:q}
+.lq li{position:relative;padding-left:34px;counter-increment:q}
+.lq li::before{content:counter(q);position:absolute;left:0;top:1px;display:grid;place-items:center;width:22px;height:22px;border:1px solid var(--ink);font:500 11px/1 var(--mono)}
+.live .lq-text{margin:0 0 4px;font-size:15.5px;font-weight:500;line-height:1.35}
+.live .lq-why{margin:0 0 6px;font-size:13px;line-height:1.45;color:var(--dim)}
+.live .lq-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0;font:400 11px/1.3 var(--mono);color:var(--dim)}
+.live .chip{padding:2px 7px;border:1px solid var(--hair);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+
+.limp{display:grid;gap:16px;margin:8px 0 0;padding:0;list-style:none}
+.limp b{font-size:14.5px;font-weight:500}
+.live .limp p{margin:4px 0 0;font-size:13.5px;line-height:1.45;overflow-wrap:anywhere}
+.limp small{display:inline-block;min-width:34px;margin-right:8px;font:500 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.live .limp-before{color:var(--dim);text-decoration:line-through;text-decoration-color:rgba(0,0,0,.25)}
+.live .limp-after{padding:8px 10px;border-left:3px solid var(--good);background:rgba(31,141,91,.07)}
+
+.lfind details summary{cursor:pointer;list-style:none}
+.lfind details summary::-webkit-details-marker{display:none}
+.lfind details summary:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.lfind details[open] summary b{text-decoration:underline;text-underline-offset:3px}
+.live .lfind details p{margin:8px 0 0;font-size:13px;line-height:1.45}
+.lfind .lfix b{display:inline;font-weight:600}
+.live .lfind .lev code{display:block;padding:6px 8px;background:rgba(20,20,20,.05);font:400 11.5px/1.4 var(--mono);overflow-wrap:anywhere}
+.lgood{display:grid;gap:5px;margin:6px 0 0;padding:0;list-style:none}
+.lgood li{position:relative;padding-left:20px;font-size:13.5px;line-height:1.4}
+.lgood li::before{content:"\2713";position:absolute;left:0;color:var(--good);font-weight:700}
+.live .lgood-label{margin-top:18px}
+
+@media (max-width:900px){
+  .lfind li{grid-template-columns:64px 1fr}
+  .lcrew-row{grid-template-columns:10px minmax(80px,104px) 1fr}
+}

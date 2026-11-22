@@ -1,0 +1,9 @@
+# Findings that AgentGuard reports on its own repository and that we accept, each with the reason.
+# Format: RULE_GLOB  PATH_GLOB  -- reason   (see server/guardscan/ignore.py). Stale entries are reported by the CLI.
+
+secret.hardcoded               server/tests/*                          -- fake keys used to test masking and to prove no secret reaches a report
+injection.eval-exec            server/guardscan/rules/code.py          -- the regular expression that detects eval(), not a call to it
+mcp.tool-description-instructions  server/guardscan/rules/agents.py    -- the pattern that detects poisoned tool descriptions
+mcp.tool-description-instructions  src/game/scenarios/level5.ts        -- a fictional poisoned tool: the lesson of level 5
+injection.os-system-concat     server/guardscan/demo.py                -- planted vulnerable lines of the demo repository, written to disk only in tests
+mcp.bind-all-interfaces        server/guardscan/demo.py                -- the same demo repository

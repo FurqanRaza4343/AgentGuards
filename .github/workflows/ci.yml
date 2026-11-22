@@ -1,0 +1,85 @@
+# CI for AgentGuard. The hygiene rules here are the ones the scanner looks for in other people's repositories:
+#   - every third-party action is pinned to a full commit hash (the tag is in the comment; Dependabot updates both);
+#   - the token is read-only for the whole workflow, and no job asks for more;
+#   - `pull_request`, never `pull_request_target`, so code from a fork runs without secrets;
+#   - concurrency and a timeout on every job;
+#   - the last job runs AgentGuard on its own repository and fails on a real finding.
+# The hashes were looked up on 2026-11-22 from the official actions repositories.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Site (type-check, build, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Known vulnerabilities in the dependencies
+        run: npm audit --audit-level=high
+
+  server:
+    name: Scanner (pytest, advisories)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Known vulnerabilities in the dependencies
+        run: python -m pip install pip-audit==2.10.1 && python -m pip_audit -r requirements.txt
+
+  dogfood:
+    name: AgentGuard scans AgentGuard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [server]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r server/requirements.txt
+      - name: Scan this checkout (read-only; nothing in it is executed)
+        working-directory: server
+        run: python -m guardscan.cli dir .. --repo "${GITHUB_REPOSITORY}" --fail-on medium --ignore-file ../.agentguard-ignore --out ../agentguard-report.json
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agentguard-report
+          path: agentguard-report.json
+          if-no-files-found: ignore
+          retention-days: 14

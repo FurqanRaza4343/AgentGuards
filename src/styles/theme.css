@@ -1,0 +1,86 @@
+/* AgentGuard — design tokens, base, fixed chrome (grid, top bar, nav, rail). Ported from the Nova theme. */
+:root{
+  --bg:#efece6;
+  --ink:#141414;
+  --dim:rgba(20,20,20,.5);
+  --line:rgba(20,20,20,.09);   /* fixed grid guides */
+  --hair:rgba(20,20,20,.2);    /* component hairlines */
+  --col:17%;
+  --grad:conic-gradient(from 200deg,#ffb347,#ff8a3d 18%,#ff5a5f 34%,#ff3d8b 50%,#ff5a5f 66%,#ff8a3d 82%,#ffb347);
+  --sans:'Schibsted Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --slide:cubic-bezier(.6,0,.2,1);
+  --paper-back:rgba(239,236,230,.88);
+}
+*{box-sizing:border-box}
+html{background:var(--bg);-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-weight:400;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer}
+p,h1,h2,ul,blockquote{margin:0}
+.mono{font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+
+/* inline icons (stroked, inherit colour) */
+.ic{display:inline-block;width:.85em;height:.85em;fill:none;stroke:currentColor;stroke-width:1.1;stroke-linecap:square;vertical-align:-.08em;flex:none}
+.ic.caret{width:.62em;height:.5em;margin-left:5px;vertical-align:.05em}
+
+/* corner brackets */
+.brk{position:relative}
+.brk>i{position:absolute;width:7px;height:7px;border:0 solid var(--ink);pointer-events:none}
+.brk>.tl{top:-5px;left:-5px;border-width:1px 0 0 1px;border-top-left-radius:3px}
+.brk>.tr{top:-5px;right:-5px;border-width:1px 1px 0 0;border-top-right-radius:3px}
+.brk>.bl{bottom:-5px;left:-5px;border-width:0 0 1px 1px;border-bottom-left-radius:3px}
+.brk>.br{bottom:-5px;right:-5px;border-width:0 1px 1px 0;border-bottom-right-radius:3px}
+
+/* ───────── fixed chrome ───────── */
+.grid{position:fixed;inset:0;z-index:0;pointer-events:none}
+.grid i{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.grid i:nth-child(1){left:var(--col)}
+.grid i:nth-child(2){left:50%}
+.grid i:nth-child(3){right:var(--col)}
+
+#stage{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;display:block}
+
+.topbar{position:fixed;top:0;left:0;right:0;height:30px;z-index:60;background:var(--ink);color:var(--bg);
+  display:flex;align-items:center;justify-content:center;padding:0 44px;
+  font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;
+  transition:transform .5s var(--slide)}
+.topbar a{overflow:hidden;text-overflow:ellipsis}
+.topbar b{font-weight:500;color:#ffb347}
+.topbar .ic{margin-left:3px}
+.tb-x{position:absolute;right:10px;top:0;width:30px;height:30px;font-size:17px;line-height:30px;opacity:.65;transition:opacity .2s}
+.tb-x:hover{opacity:1}
+body.tb-off .topbar{transform:translateY(-100%)}
+
+.nav{position:fixed;left:0;right:0;top:30px;height:52px;z-index:50;
+  display:grid;grid-template-columns:var(--col) 1fr 12% var(--col);align-items:stretch;
+  background:rgba(239,236,230,.86);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--hair);transition:top .5s var(--slide)}
+body.tb-off .nav{top:0}
+.logo{display:flex;align-items:center;gap:9px;padding-left:24px;font-size:18px;font-weight:500;letter-spacing:.005em;white-space:nowrap}
+.logo svg{width:27px;height:27px;flex:none}
+.menu{display:flex;align-items:center;justify-content:space-evenly;padding:0 12px;font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.menu a{display:inline-flex;align-items:center;opacity:.9;transition:opacity .2s}
+.menu a:hover{opacity:.5}
+.pad{display:flex;align-items:center;justify-content:center;gap:4px;border-left:1px solid var(--hair);border-right:1px solid var(--hair);font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.pad:hover{background:rgba(20,20,20,.04)}
+.cta{display:flex;align-items:center;padding:0 18px}
+.btn{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:30px;
+  border:1px solid var(--ink);font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;
+  transition:background .25s,color .25s}
+.btn::before{content:'';position:absolute;inset:-1px;background:var(--grad);pointer-events:none;
+  clip-path:polygon(0 0,46% 0,46% 1px,1px 1px,1px 100%,0 100%)}
+.btn:hover{background:var(--ink);color:var(--bg)}
+.btn .eyes{letter-spacing:.14em}
+
+.rail{position:fixed;right:30px;top:50%;height:270px;width:96px;margin-top:-135px;z-index:40;pointer-events:none}
+.rdots{position:absolute;right:0;top:0;bottom:0;width:5px;display:flex;flex-direction:column;justify-content:space-between;align-items:center}
+.rdots i{width:3px;height:3px;border-radius:50%;background:rgba(20,20,20,.3);transition:transform .5s,background .5s}
+.rdots i.on{background:var(--ink);transform:scale(1.7)}
+.rlabel{position:absolute;right:17px;top:0;transform:translateY(-50%);display:flex;align-items:center;gap:7px;
+  font:400 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:top .7s var(--slide)}
+.rlabel svg{width:12px;height:12px}
+.rmenu{position:absolute;right:0;top:100%;margin-top:26px;display:flex;align-items:center;gap:7px;
+  font:400 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+

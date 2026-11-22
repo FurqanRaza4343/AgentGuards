@@ -1,0 +1,9 @@
+# Direct dependencies of the scanner, pinned. pip resolves the rest.
+# The versions are the ones the tests ran against (see server/README.md).
+fastapi==0.165.0
+uvicorn==0.54.0
+pydantic==2.14.4
+httpx==0.28.1
+httpcore==1.0.9
+# Gemini through the Agent Development Kit. Only used when GEMINI_API_KEY is set; the scanner works without it.
+google-adk==2.15.0

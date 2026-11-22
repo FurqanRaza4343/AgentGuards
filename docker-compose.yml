@@ -1,0 +1,32 @@
+# The whole thing in Docker: the site and the service in one container, plus the private SearXNG for the search checks.
+#
+#   docker compose up -d --build                          # keys in ./.env
+#   docker compose --env-file ../.env up -d --build       # keys in the folder above (how this project was developed)
+#   then open http://127.0.0.1:8080
+#   docker compose down                                   # stop it
+#
+# Needs in .env: SEARXNG_SECRET (any long random value). GEMINI_API_KEY is optional: without it the questions come from templates.
+# Both ports are published on 127.0.0.1 only. See README.md, "Run it", for running without Docker.
+include:
+  - path: searxng/docker-compose.yml
+
+services:
+  agentguard:
+    build: .
+    image: agentguard:local
+    restart: unless-stopped
+    depends_on:
+      - searxng
+    ports:
+      - "127.0.0.1:8080:8080"
+    # the container reads nothing from disk but its own code, and writes nothing
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GEMINI_API_KEY2: "${GEMINI_API_KEY2:-}"
+      SEARXNG_URL: "http://searxng:8080"
+      AGENTGUARD_PACE: "0.45"

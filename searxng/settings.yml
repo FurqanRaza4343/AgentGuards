@@ -1,0 +1,18 @@
+# Settings for the private SearXNG that AgentGuard can ask (see docker-compose.yml).
+use_default_settings: true
+
+general:
+  instance_name: "agentguard-local"
+
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json # AgentGuard reads the JSON format
+
+server:
+  # The real value comes from the SEARXNG_SECRET environment variable.
+  secret_key: "replaced-by-the-SEARXNG_SECRET-environment-variable"
+  # The server listens on loopback only. If you ever expose it to a network, turn the limiter on.
+  limiter: false
+  image_proxy: false
