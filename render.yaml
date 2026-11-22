@@ -17,8 +17,9 @@ services:
         sync: false
       - key: AGENTGUARD_TRUST_PROXY
         value: "1"
-      - key: AGENTGUARD_PROXY_HOPS
-        value: "1"
+      # Render sits behind Cloudflare: X-Forwarded-For has three entries, so use the header Cloudflare sets itself
+      - key: AGENTGUARD_CLIENT_IP_HEADER
+        value: "CF-Connecting-IP"
       - key: AGENTGUARD_RATE_PER_HOUR
         value: "20"
       - key: AGENTGUARD_DAILY_LLM_CALLS
