@@ -110,7 +110,9 @@ def backup_configured() -> bool:
 
 
 def _backup_client() -> httpx.AsyncClient:  # replaced in tests
-    return httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False)
+    # a slow route to the provider is normal on some servers (4 to 10 seconds to connect was measured): a generous connect limit,
+    # and two retries for a connection that fails to open (a request that was sent is never repeated)
+    return httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(retries=2), timeout=httpx.Timeout(60.0, connect=25.0), follow_redirects=False)
 
 
 def _fit(value: Any, node: dict[str, Any], defs: dict[str, Any]) -> Any:
