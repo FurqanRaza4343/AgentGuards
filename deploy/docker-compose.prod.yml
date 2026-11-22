@@ -1,0 +1,63 @@
+# Production stack for a VPS that already has a shared reverse proxy (Caddy) on ports 80/443.
+#
+#   cd /opt/agentguard/app
+#   docker compose -f deploy/docker-compose.prod.yml --env-file ../.env up -d --build
+#
+# The app listens on 127.0.0.1:8280 only. The proxy (see deploy/agentguard.caddy) adds the domain and HTTPS.
+# SearXNG has no published port at all: only the app can reach it, over the stack's own network.
+name: agentguard
+
+services:
+  agentguard:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: agentguard:prod
+    restart: unless-stopped
+    depends_on:
+      - searxng
+    ports:
+      - "127.0.0.1:8280:8080"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # a public service must not be able to starve the other projects on the same machine
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 256
+    environment:
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GEMINI_API_KEY2: "${GEMINI_API_KEY2:-}"
+      SEARXNG_URL: "http://searxng:8080"
+      # Only the proxy can reach 127.0.0.1:8280, and it sets X-Forwarded-For to the real client address,
+      # so the per-address and per-site rate limits work.
+      AGENTGUARD_TRUST_PROXY: "1"
+      AGENTGUARD_RATE_PER_HOUR: "${AGENTGUARD_RATE_PER_HOUR:-6}"
+      AGENTGUARD_HOST_RATE_PER_HOUR: "${AGENTGUARD_HOST_RATE_PER_HOUR:-3}"
+      AGENTGUARD_DAILY_LLM_CALLS: "${AGENTGUARD_DAILY_LLM_CALLS:-150}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  searxng:
+    # Pinned to the digest that was pulled and tested on 2026-11-22.
+    image: docker.io/searxng/searxng:latest@sha256:dc2f7ed8a215b2f8244eaed083acdd50406f0de18bf43410cc460a4b511b7424
+    restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 256
+    environment:
+      SEARXNG_SECRET: "${SEARXNG_SECRET:?set SEARXNG_SECRET to a long random value in .env}"
+      SEARXNG_BASE_URL: "http://searxng:8080/"
+    volumes:
+      - ../searxng/settings.yml:/etc/searxng/settings.yml
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

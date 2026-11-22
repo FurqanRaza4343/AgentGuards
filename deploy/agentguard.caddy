@@ -1,0 +1,14 @@
+# A Caddy site block for AgentGuard, in the style of the other files in /opt/proxy/sites/.
+# Replace the domain with your own when you have one (for example agentguard.example.com), then restart the proxy.
+agentguard.185-183-54-184.sslip.io {
+	# the analysis endpoints stream Server-Sent Events: never compress or buffer them
+	@notapi not path /api/*
+	encode @notapi zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:8280 {
+		flush_interval -1
+	}
+}
