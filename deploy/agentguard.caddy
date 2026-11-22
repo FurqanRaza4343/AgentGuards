@@ -1,5 +1,6 @@
 # A Caddy site block for AgentGuard, in the style of the other files in /opt/proxy/sites/.
-# Replace the domain with your own when you have one (for example agentguard.example.com), then restart the proxy.
+# The VPS serves this under agentguards.duckdns.org (a free DuckDNS name pointing at the VPS) and under the sslip.io name below.
+# To use another domain: point its A record at the VPS, add a copy of this block with that name, validate, restart the proxy.
 agentguard.185-183-54-184.sslip.io {
 	# the analysis endpoints stream Server-Sent Events: never compress or buffer them
 	@notapi not path /api/*

@@ -10,13 +10,14 @@ Built for **DevFest Pakistan 2026** (GDG Live Pakistan). The seven levels are a 
 network calls. The look comes from the Nova landing-page theme (paper-white, grid lines, four colourways of a 3D ceramic
 robot built entirely in three.js).
 
-**Live:**
+**Live: https://agentguards.duckdns.org**
 
-- https://agentguard.185-183-54-184.sslip.io : always on, on a VPS behind Caddy and HTTPS, with the search checks (see [deploy/](deploy/README.md)).
-- https://agentguard-oh7q.onrender.com : on Render's free plan (the site and the service in one Docker container, see `render.yaml`). It sleeps after 15 minutes
-  without visitors and needs about a minute to wake up, and it has no search server.
+- It runs always-on on a VPS behind Caddy with HTTPS, together with a private SearXNG for the search checks (see [deploy/](deploy/README.md)).
+  The same site also answers on https://agentguard.185-183-54-184.sslip.io.
+- A backup copy runs on Render's free plan (https://agentguard-oh7q.onrender.com, see `render.yaml`). It sleeps after 15 minutes without visitors,
+  needs about a minute to wake up, and has no search server.
 
-Both are public demos with limits: a few runs per visitor per hour, a few per website per hour, and a daily cap on model calls.
+These are public demos with limits: a few runs per visitor per hour, a few per website per hour, and a daily cap on model calls.
 When Gemini's free quota is used up the questions come from templates, and the recorded demos always work.
 
 Three things to do with it:
