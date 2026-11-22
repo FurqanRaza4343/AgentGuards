@@ -11,7 +11,7 @@
 #   - the build stage is thrown away, so Node and the sources are not in the final image.
 
 # ---- 1. build the site ----
-FROM node:22-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
