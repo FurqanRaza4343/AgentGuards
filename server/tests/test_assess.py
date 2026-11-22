@@ -400,3 +400,26 @@ async def test_with_two_proxies_in_front_the_second_from_the_end_is_the_client(m
         body = {"kind": "profile", "text": demo_profile_text()}
         assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "9.9.9.9, 203.0.113.7, 172.70.0.1"})).status_code == 200
         assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "8.8.8.8, 203.0.113.7, 172.70.0.2"})).status_code == 429
+
+
+async def test_a_platform_header_is_used_for_the_client_when_configured_and_ignored_otherwise(monkeypatch: pytest.MonkeyPatch) -> None:
+    body = {"kind": "profile", "text": demo_profile_text()}
+    monkeypatch.setenv("AGENTGUARD_TRUST_PROXY", "1")
+    monkeypatch.setenv("AGENTGUARD_CLIENT_IP_HEADER", "CF-Connecting-IP")
+    application = create_app(Services(osv=None), assess_services=services(), rate_per_hour=1)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://test") as c:
+        assert (await c.post("/api/assess", json=body, headers={"cf-connecting-ip": "198.51.100.1", "x-forwarded-for": "9.9.9.9, 172.70.0.1"})).status_code == 200
+        # same platform edge in X-Forwarded-For, a different real client in the platform's header: a different bucket
+        assert (await c.post("/api/assess", json=body, headers={"cf-connecting-ip": "198.51.100.2", "x-forwarded-for": "9.9.9.9, 172.70.0.1"})).status_code == 200
+        assert (await c.post("/api/assess", json=body, headers={"cf-connecting-ip": "198.51.100.1", "x-forwarded-for": "7.7.7.7, 172.70.0.9"})).status_code == 429
+
+
+async def test_the_client_debug_flags_are_off_by_default_and_never_contain_an_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app()), base_url="http://test") as c:
+        assert "clientDebug" not in (await c.get("/api/health")).json()
+    monkeypatch.setenv("AGENTGUARD_DEBUG_CLIENT", "1")
+    application = create_app(Services(osv=None), assess_services=services())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://test") as c:
+        r = await c.get("/api/health", headers={"x-forwarded-for": "203.0.113.5, 172.70.0.1", "cf-connecting-ip": "203.0.113.5"})
+        assert r.json()["clientDebug"] == {"xffEntries": 2, "cfConnectingIp": True, "trueClientIp": False, "xRealIp": False}
+        assert "203.0.113" not in r.text

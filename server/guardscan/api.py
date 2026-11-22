@@ -93,10 +93,19 @@ def create_app(services: Services | None = None, *, assess_services: AssessServi
     except ValueError:
         proxy_hops = 1
 
+    # A header that the platform in front sets itself and overwrites if a client sends it (Cloudflare's CF-Connecting-IP, for example).
+    client_ip_header = os.environ.get("AGENTGUARD_CLIENT_IP_HEADER", "").strip().lower()
+    debug_client = os.environ.get("AGENTGUARD_DEBUG_CLIENT", "") == "1"
+
     def client_id(request: Request) -> str:
-        """The client address for the rate limits. Behind a proxy it is the entry that the proxy itself added: the one
-        `proxy_hops` places from the END of X-Forwarded-For. The first entry is whatever the client wrote and can be forged."""
+        """The client address for the rate limits. Behind a proxy it is, in this order: the platform's own header if one is
+        configured, else the entry that the proxy itself added, the one `proxy_hops` places from the END of X-Forwarded-For.
+        The first entry is whatever the client wrote and can be forged."""
         if trust_proxy:
+            if client_ip_header:
+                value = request.headers.get(client_ip_header, "").strip()
+                if value:
+                    return value[:64]
             parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
             if parts:
                 return parts[-proxy_hops if len(parts) >= proxy_hops else 0][:64]
@@ -125,13 +134,22 @@ def create_app(services: Services | None = None, *, assess_services: AssessServi
         return response
 
     @app.get("/api/health")
-    async def health() -> dict[str, object]:
-        return {
+    async def health(request: Request) -> dict[str, object]:
+        out: dict[str, object] = {
             "ok": True,
             "model": isinstance(svc.coach, AdkCoach) and svc.coach.available,
             "search": asvc.search is not None,
             "testSource": svc.dir_source is not None,
         }
+        if debug_client:  # switched on only while checking how a new platform forwards client addresses: counts and flags, never an address
+            h = request.headers
+            out["clientDebug"] = {
+                "xffEntries": len([p for p in h.get("x-forwarded-for", "").split(",") if p.strip()]),
+                "cfConnectingIp": bool(h.get("cf-connecting-ip")),
+                "trueClientIp": bool(h.get("true-client-ip")),
+                "xRealIp": bool(h.get("x-real-ip")),
+            }
+        return out
 
     async def _demo(which: str):  # type: ignore[no-untyped-def]
         path = DEMO_FILE if which == "repo" else DEMO_FILES[which]
