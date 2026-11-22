@@ -1,0 +1,25 @@
+# Render blueprint for AgentGuard: one Docker web service (the site and the service in one container).
+# Secrets are not stored here: GEMINI_API_KEY and GEMINI_API_KEY2 are set in the Render dashboard (or API) and are optional.
+# On the free plan the service sleeps after 15 minutes without traffic and needs about a minute to wake up.
+services:
+  - type: web
+    name: agentguard
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY2
+        sync: false
+      - key: AGENTGUARD_TRUST_PROXY
+        value: "1"
+      - key: AGENTGUARD_PROXY_HOPS
+        value: "1"
+      - key: AGENTGUARD_RATE_PER_HOUR
+        value: "20"
+      - key: AGENTGUARD_DAILY_LLM_CALLS
+        value: "150"

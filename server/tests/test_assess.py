@@ -373,3 +373,30 @@ async def test_the_demo_endpoints_serve_baked_reports_or_say_there_is_none(monke
         assert (await c.get("/api/demo/site")).json() == {"kind": "site"}
         assert (await c.get("/api/demo/profile")).status_code == 404
         assert (await c.get("/api/demo/other")).status_code == 422
+
+
+# ====================================================================== who the client is, behind a proxy
+
+async def test_behind_a_proxy_the_client_is_the_address_the_proxy_added_not_what_the_client_wrote(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENTGUARD_TRUST_PROXY", "1")
+    monkeypatch.delenv("AGENTGUARD_PROXY_HOPS", raising=False)
+    application = create_app(Services(osv=None), assess_services=services(), rate_per_hour=2)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://test") as c:
+        body = {"kind": "profile", "text": demo_profile_text()}
+        # two runs from the real address 203.0.113.7, each time with a different forged first entry
+        for forged in ("1.1.1.1", "2.2.2.2"):
+            assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": f"{forged}, 203.0.113.7"})).status_code == 200
+        # a third run is refused: the forged entries did not give it a fresh allowance
+        assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "3.3.3.3, 203.0.113.7"})).status_code == 429
+        # another real address is a different client
+        assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "203.0.113.8"})).status_code == 200
+
+
+async def test_with_two_proxies_in_front_the_second_from_the_end_is_the_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENTGUARD_TRUST_PROXY", "1")
+    monkeypatch.setenv("AGENTGUARD_PROXY_HOPS", "2")
+    application = create_app(Services(osv=None), assess_services=services(), rate_per_hour=1)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application), base_url="http://test") as c:
+        body = {"kind": "profile", "text": demo_profile_text()}
+        assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "9.9.9.9, 203.0.113.7, 172.70.0.1"})).status_code == 200
+        assert (await c.post("/api/assess", json=body, headers={"x-forwarded-for": "8.8.8.8, 203.0.113.7, 172.70.0.2"})).status_code == 429

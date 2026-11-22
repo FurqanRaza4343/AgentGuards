@@ -10,6 +10,10 @@ Built for **DevFest Pakistan 2026** (GDG Live Pakistan). The seven levels are a 
 network calls. The look comes from the Nova landing-page theme (paper-white, grid lines, four colourways of a 3D ceramic
 robot built entirely in three.js).
 
+**Live: https://agentguard.185-183-54-184.sslip.io** (deployed with Docker on a VPS behind Caddy and HTTPS; see [deploy/](deploy/README.md)).
+It is a public demo with limits: a few runs per visitor per hour, a few per website per hour, and a daily cap on model calls.
+When Gemini's free quota is used up the questions come from templates, and the recorded demos always work.
+
 Three things to do with it:
 
 | | What it is | Needs |
@@ -200,7 +204,7 @@ move their arms, so the game uses the procedural robot, which is fully animated,
 
 ```
 index.html  inspect.html (dev only)  vite.config.ts  tsconfig.json  Dockerfile  .env.example
-AGENTS.md  SECURITY.md  NOTICE  skills/agentguard/SKILL.md  .agentguard-ignore  .github/  searxng/
+AGENTS.md  SECURITY.md  NOTICE  skills/agentguard/SKILL.md  .agentguard-ignore  .github/  searxng/  deploy/  docker-compose.yml
 public/                  fonts, models, demo-report.json, demo-site-report.json, demo-profile-report.json (baked by the scanner)
 src/
   agents.ts              the four agents: names, roles, tools, colour skins

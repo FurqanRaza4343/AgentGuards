@@ -88,11 +88,18 @@ def create_app(services: Services | None = None, *, assess_services: AssessServi
     gate = asyncio.Semaphore(max_concurrent or int(os.environ.get("AGENTGUARD_MAX_CONCURRENT", "2")))
     trust_proxy = os.environ.get("AGENTGUARD_TRUST_PROXY", "").lower() in {"1", "true", "yes"}
 
+    try:
+        proxy_hops = max(1, int(os.environ.get("AGENTGUARD_PROXY_HOPS", "1")))
+    except ValueError:
+        proxy_hops = 1
+
     def client_id(request: Request) -> str:
+        """The client address for the rate limits. Behind a proxy it is the entry that the proxy itself added: the one
+        `proxy_hops` places from the END of X-Forwarded-For. The first entry is whatever the client wrote and can be forged."""
         if trust_proxy:
-            fwd = request.headers.get("x-forwarded-for", "")
-            if fwd:
-                return fwd.split(",")[0].strip()[:64]
+            parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+            if parts:
+                return parts[-proxy_hops if len(parts) >= proxy_hops else 0][:64]
         return request.client.host if request.client else "unknown"
 
     @app.middleware("http")
