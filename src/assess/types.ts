@@ -63,6 +63,8 @@ export interface AssessReport {
   backup: boolean;
   runLog: LogLine[];
   disclaimers: string[];
+  /** short words for a scorecard check that passes (a site only): what robots.txt, the sitemap and the title looked like */
+  facts: Record<string, string>;
   demo: boolean;
 }
 
@@ -151,6 +153,7 @@ export function coerceAssess(x: unknown): AssessReport | null {
     backup: x.backup === true,
     runLog: Array.isArray(x.runLog) ? x.runLog.flatMap((l) => (isObj(l) && isStr(l.text) ? [toLogLine(l)] : [])) : [],
     disclaimers: Array.isArray(x.disclaimers) ? x.disclaimers.filter(isStr).map((s) => s.slice(0, 400)) : [],
+    facts: isObj(x.facts) ? Object.fromEntries(Object.entries(x.facts).filter(([k, v]) => k.length <= 30 && isStr(v)).slice(0, 30).map(([k, v]) => [k, (v as string).slice(0, 140)])) : {},
     demo: x.demo === true,
   };
 }

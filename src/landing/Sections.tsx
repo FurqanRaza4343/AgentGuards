@@ -19,7 +19,7 @@ const SOURCES: Source[] = [
   {
     id: 'repo',
     hash: '#analyze',
-    tag: 'Repository',
+    tag: 'Game 1 · Repository',
     title: 'A public GitHub repository',
     lead: 'Paste a link. The crew reads the files and finds what an AI agent should never merge without you.',
     reads: 'The archive of a public repo, in memory. Nothing is installed, built or run.',
@@ -31,7 +31,7 @@ const SOURCES: Source[] = [
   {
     id: 'site',
     hash: '#site',
-    tag: 'Website',
+    tag: 'Game 2 · Website',
     title: 'A website address',
     lead: 'Type an address. The crew reads the public pages once, politely, the way a search engine would.',
     reads: 'The home page and a few pages it links to, after robots.txt. GET requests only.',
@@ -43,7 +43,7 @@ const SOURCES: Source[] = [
   {
     id: 'profile',
     hash: '#profile',
-    tag: 'LinkedIn and CV',
+    tag: 'Game 3 · LinkedIn and CV',
     title: 'Your own profile',
     lead: 'Use your LinkedIn data export, or paste your text. You get your posts per month, your certifications and what to improve.',
     reads: 'The ZIP that LinkedIn gives you (“Get a copy of your data”), opened in your browser. It is not uploaded.',

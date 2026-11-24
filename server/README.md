@@ -42,7 +42,7 @@ reader is dropped. Without a key, or if the model fails, **templates** write the
 
 **The website rules.** Passive and polite, by construction (`tools/web.py`):
 
-- ordinary GET requests only, at most about eleven per run; no forms are submitted, no scripts run, no logins, no hidden
+- ordinary GET requests only, at most about fifteen per run (the home page, five linked pages, robots.txt, the sitemap and its first child, up to three pages from the sitemap, security.txt and one plain-http probe); no forms are submitted, no scripts run, no logins, no hidden
   paths guessed (it reads `/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt` and pages the site links to);
 - `robots.txt` is read first and obeyed (a missing file allows everything, a server error disallows everything, as RFC 9309 says);
   the user agent is `AgentGuardBot` so an owner can block it there;
@@ -100,7 +100,7 @@ and `hygiene`. Several rules also produce a **benign** match, the safe form of t
 ```bash
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt     # Windows; use .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                        # 427 tests, no network and no key needed
+.venv/Scripts/python -m pytest                        # 447 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -148,7 +148,7 @@ entries are reported. The web service never reads such a file from a repository 
 
 Verified:
 
-- the 427 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
+- the 447 tests (network policy table, hostile archives, hostile pages, hidden-content stripping, secret masking, every rule
   with a bad and a good case, the pipeline, the Orchestrator with fake models and fake search, the HTTP interface, the CLI);
 - the pinned `requirements.txt` installs into a clean Python 3.11 environment and the suite passes there;
 - **Gemini, live, on 2026-11-22:** the Coach for the repository demo (prose kept for 12 of 13 findings), and Nova's questions and

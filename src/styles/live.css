@@ -32,11 +32,18 @@
 .lrunlog .glog{border-width:1px 0 0;height:220px}
 
 /* ---- the Orchestrator: website and profile */
-.lmodes{display:flex;gap:6px;margin:-4px 0 14px;flex-wrap:wrap}
-.lmodes a{padding:6px 11px;border:1px solid var(--hair);font:500 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);text-decoration:none}
-.lmodes a:hover{border-color:var(--ink);color:var(--ink)}
-.lmodes a.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.lmodes a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+/* three separate games, as three big tiles */
+.lmodes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:-4px 0 18px}
+.lmodes a{display:flex;flex-direction:column;gap:3px;min-height:96px;padding:12px 12px 11px;border:1px solid var(--hair);border-top:4px solid var(--accent);background:rgba(255,255,255,.5);color:var(--ink);text-decoration:none;
+  transition:background .2s,color .2s,transform .2s}
+.lmodes a:hover{border-color:var(--ink);border-top-color:var(--accent);transform:translateY(-2px)}
+.lmodes a.on{background:var(--ink);border-color:var(--ink);border-top-color:var(--accent);color:var(--bg)}
+.lmodes a:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.lmode-game{display:flex;align-items:center;gap:6px;font:500 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;opacity:.7}
+.lmode-glyph{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.lmode-label{margin-top:7px;font-size:clamp(16px,1.3vw,21px);line-height:1.1;letter-spacing:-.015em}
+.lmode-verb{margin-top:auto;padding-top:6px;font:400 11px/1.3 var(--mono);opacity:.65}
+.lmodes a.on .lmode-game,.lmodes a.on .lmode-verb{opacity:.85}
 .lform textarea{width:100%;min-height:150px;padding:12px 14px;border:1px solid var(--ink);border-radius:0;background:#fff;color:var(--ink);font:400 13px/1.45 var(--mono);resize:vertical}
 .lform textarea:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .lform textarea::placeholder{color:rgba(20,20,20,.38)}
@@ -123,9 +130,48 @@
 .lcerts small{display:block;margin-top:2px;font:400 11px/1.3 var(--mono);color:var(--dim)}
 .lact .gnote{margin-top:14px}
 
+/* ---- the scorecard: one number out of 100 and the checklist behind it */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.lscore{--ring:var(--ink)}
+.lscore.t-good{--ring:var(--good)}
+.lscore.t-ok{--ring:#4f9a3b}
+.lscore.t-mid{--ring:var(--warn)}
+.lscore.t-bad{--ring:var(--bad)}
+.lscore-top{display:grid;grid-template-columns:132px minmax(0,1fr);gap:18px;align-items:center;margin:4px 0 16px}
+.lring{width:132px;height:132px}
+.lring-bg{fill:none;stroke:var(--hair);stroke-width:10}
+.lring-fg{fill:none;stroke:var(--ring);stroke-width:10}
+.lring-n{font:500 36px var(--sans);fill:var(--ink)}
+.lring-of{font:400 8.5px var(--mono);fill:rgba(20,20,20,.55);text-transform:uppercase;letter-spacing:.06em}
+.live .lscore-verdict{margin:0 0 4px;font-size:24px;line-height:1.1;letter-spacing:-.015em}
+.live .lscore-cap{margin:0 0 8px;font-size:13px;line-height:1.4;color:var(--dim)}
+.live .lscore-count{margin:0;font:400 11.5px/1.4 var(--mono);color:var(--dim)}
+.lscore-count b{font-weight:500;color:var(--ink)}
+.lchecks{display:grid;margin:0;padding:0;list-style:none;border-top:1px solid var(--hair)}
+.lchecks li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:1px 10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--hair)}
+.cmark{grid-row:1/3;display:grid;place-items:center;width:20px;height:20px;margin-top:1px;border:1px solid currentColor;font:600 12px/1 var(--mono)}
+.clabel{position:relative;font-size:14px;font-weight:500;line-height:1.3}
+.cdetail{grid-column:2;font:400 11.5px/1.4 var(--mono);color:var(--dim);overflow-wrap:anywhere}
+.c-pass .cmark{color:var(--good)}
+.c-warn .cmark{color:var(--warn)}
+.c-fail .cmark{color:var(--bad)}
+.c-fail .cdetail{color:var(--ink)}
+.c-skip{opacity:.6}
+.c-skip .cmark{color:var(--dim)}
+.lurl a{text-decoration:underline;text-underline-offset:3px}
+
 @media (max-width:900px){
+  .lscore-top{grid-template-columns:104px minmax(0,1fr);gap:12px}
+  .lring{width:104px;height:104px}
   .lfind li{grid-template-columns:64px 1fr}
   .lcrew-row{grid-template-columns:10px minmax(80px,104px) 1fr}
   .lstats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .lbars{gap:3px}
+}
+@media (max-width:520px){
+  .lmodes{gap:6px}
+  .lmodes a{min-height:88px;padding:10px 9px}
+  .lmode-label{font-size:15px}
+  .lmode-verb{font-size:10px}
+  .lmode-game{font-size:9px;gap:4px}
 }

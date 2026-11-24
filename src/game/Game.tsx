@@ -7,6 +7,8 @@ import { stage } from '../stage/stage';
 import { deriveAgentState } from './agentState';
 import { layoutFor } from './layout';
 import { createInitialState, gameReducer, scenarioOf, stepOf, totalScore, type LevelResult } from './gameReducer';
+import type { AssessReport } from '../assess/types';
+import { autoChoice, PRESSURE_SECONDS, streakOf } from './fixPlan';
 import { applyResult, clearProgress, emptyProgress, loadProgress, saveProgress } from './progress';
 import { SCENARIOS } from './scenarios';
 import type { Scenario } from './types';
@@ -14,11 +16,20 @@ import { levelMax } from './scoring';
 import { ArtifactView } from './ui/ArtifactView';
 import { BriefCard, FinalCard, IntroCard, OutcomeCard, ScenarioCard, SummaryCard } from './ui/Cards';
 import { FieldGuide } from './ui/FieldGuide';
-import { AgentBadge, DecisionBar, GameNav, LogPanel, PanelTabs, StatusBar, type PanelTab } from './ui/Panels';
+import { FixPlan } from './ui/FixPlan';
+import { AgentBadge, DecisionBar, GameNav, LogPanel, PanelTabs, PressureBar, StatusBar, type PanelTab } from './ui/Panels';
 
 const LEVEL_IDS = SCENARIOS.map((s) => s.id);
+const PRESSURE_KEY = 'agentguard.pressure';
+const readPressure = (): boolean => {
+  try {
+    return window.localStorage.getItem(PRESSURE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
 
-export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () => void; scenarios?: Scenario[]; onAnalyse?: () => void }) {
+export function Game({ onExit, scenarios = SCENARIOS, onAnalyse, report = null }: { onExit: () => void; scenarios?: Scenario[]; onAnalyse?: () => void; report?: AssessReport | null }) {
   const [state, dispatch] = useReducer(gameReducer, scenarios, createInitialState);
   const [progress, setProgress] = useState(loadProgress);
   const [fresh, setFresh] = useState<string[]>([]);
@@ -28,6 +39,9 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
   const mobile = useMediaQuery('(max-width: 900px)');
   const muted = useMuted();
   const savedResult = useRef<LevelResult | null>(null);
+  const [pressure, setPressureState] = useState(readPressure);
+  const [left, setLeft] = useState<number | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   const { phase } = state;
   const inLevel = phase !== 'intro' && phase !== 'final';
@@ -104,13 +118,43 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
     setTab(phase === 'decision' ? 'evidence' : 'log');
   }, [phase, state.stepIndex, state.levelIndex]);
 
+  // ---- pressure mode (optional): a clock runs while the player decides, and when it ends the agent goes ahead
+  const setPressure = (on: boolean) => {
+    setPressureState(on);
+    try {
+      window.localStorage.setItem(PRESSURE_KEY, on ? '1' : '0');
+    } catch {
+      /* blocked storage: the switch still works for this visit */
+    }
+  };
+  useEffect(() => {
+    setLeft(phase === 'decision' && pressure ? PRESSURE_SECONDS : null);
+    if (phase === 'decision') setTimedOut(false); // the note stays on screen through the outcome that it explains
+    // an Audit does not restart the clock: only a new decision does
+  }, [phase, state.stepIndex, state.levelIndex, pressure]);
+  useEffect(() => {
+    if (left === null || guide.open) return;
+    if (left <= 0) {
+      const o = autoChoice(state.options);
+      setLeft(null);
+      if (o) {
+        setTimedOut(true);
+        choose(o.id, true);
+      }
+      return;
+    }
+    const id = setTimeout(() => setLeft((l) => (l === null ? null : l - 1)), 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [left, guide.open]);
+
   // ---- user actions, with a sound each
-  const choose = (optionId: string) => {
+  const choose = (optionId: string, timedOut = false) => {
     const option = state.options.find((o) => o.id === optionId);
     if (!option) return;
     if (option.reveal) play('click');
     else play(option.verdict === 'safe' ? 'good' : option.verdict === 'risky' ? 'bad' : 'click');
-    dispatch({ type: 'CHOOSE', optionId });
+    dispatch({ type: 'CHOOSE', optionId, timedOut });
   };
 
   const inspect = (clueId: string) => {
@@ -155,7 +199,8 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
     const result = state.results[state.levelIndex];
     if (!result || savedResult.current === result) return;
     savedResult.current = result;
-    const { progress: next, earned } = applyResult(progress, scenarioOf(state).id, result, state.history, LEVEL_IDS);
+    const sc = scenarioOf(state);
+    const { progress: next, earned } = applyResult(progress, sc.id, result, state.history, LEVEL_IDS, sc.kind === 'mission' ? sc.source ?? 'repo' : undefined);
     saveProgress(next);
     setProgress(next);
     setFresh(earned);
@@ -214,10 +259,11 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
           <IntroCard scenarios={scenarios} progress={progress} onStart={(level) => dispatch({ type: 'START_LEVEL', level })} onGuide={openGuide} onReset={resetProgress} onAnalyse={onAnalyse} />
         )}
 
-        {phase === 'briefing' && scenario && <BriefCard scenario={scenario} onBegin={() => dispatch({ type: 'BEGIN' })} onGuide={openGuide} />}
+        {phase === 'briefing' && scenario && <BriefCard scenario={scenario} onBegin={() => dispatch({ type: 'BEGIN' })} onGuide={openGuide} pressure={pressure} onPressure={setPressure} />}
 
         {(phase === 'simulating' || phase === 'decision') && scenario && step && (
           <>
+            {phase === 'decision' && left !== null && <PressureBar left={left} total={PRESSURE_SECONDS} />}
             <ScenarioCard step={step} stepNumber={state.stepIndex + 1} stepCount={scenario.steps.length} deciding={phase === 'decision'} reveal={state.reveal} />
             <div className="gpanel">
               <PanelTabs tab={tab} onTab={setTab} logCount={state.log.length} />
@@ -242,7 +288,7 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
 
         {phase === 'outcome' && scenario && state.lastOption && (
           <>
-            <OutcomeCard option={state.lastOption} last={state.stepIndex + 1 >= scenario.steps.length} onContinue={() => dispatch({ type: 'CONTINUE' })} />
+            <OutcomeCard option={state.lastOption} last={state.stepIndex + 1 >= scenario.steps.length} onContinue={() => dispatch({ type: 'CONTINUE' })} streak={streakOf(state.history)} timedOut={timedOut} />
             <LogPanel lines={state.log} simulating={false} onSkip={() => undefined} />
           </>
         )}
@@ -260,6 +306,8 @@ export function Game({ onExit, scenarios = SCENARIOS, onAnalyse }: { onExit: () 
             onGuide={openGuide}
           />
         )}
+
+        {phase === 'summary' && scenario && result && scenario.kind === 'mission' && <FixPlan scenario={scenario} history={state.history} report={report} />}
 
         {phase === 'final' && <FinalCard scenarios={scenarios} progress={progress} onMenu={() => dispatch({ type: 'MENU' })} onExit={onExit} />}
       </div>

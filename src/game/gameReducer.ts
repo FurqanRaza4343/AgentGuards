@@ -44,12 +44,16 @@ export type Action =
   | { type: 'SKIP_SIM' }
   | { type: 'SIM_DONE' }
   | { type: 'INSPECT'; clueId: string }
-  | { type: 'CHOOSE'; optionId: string }
+  /** `timedOut`: pressure mode ran out of time, so the agent acted by itself and the log must not say that the player approved it */
+  | { type: 'CHOOSE'; optionId: string; timedOut?: boolean }
   | { type: 'CONTINUE' }
   | { type: 'NEXT_LEVEL' }
   | { type: 'RETRY' }
   | { type: 'MENU' }
   | { type: 'RESET' };
+
+/** What the log says when the agent went ahead because nobody decided: the same line, without "by you". */
+export const byItself = (line: LogLine): LogLine => ({ ...line, text: line.text.replace(/\bby you\b/gi, 'automatically (no decision was made)') });
 
 export const createInitialState = (scenarios: Scenario[] = SCENARIOS): GameState => ({
   scenarios,
@@ -229,7 +233,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         levelWork: state.levelWork + option.work,
         risky: state.risky + (option.verdict === 'risky' ? 1 : 0),
         history: [...state.history, entry],
-        log: [...state.log, ...option.log],
+        log: [...state.log, ...(action.timedOut ? option.log.map(byItself) : option.log)],
         lastOption: option,
       };
     }

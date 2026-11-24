@@ -20,10 +20,10 @@ repository, a public website, or a profile that a person pasted. Two languages, 
 ## Commands
 
 ```bash
-npm install && npm test              # 249 vitest tests: scenarios, reducer, scoring, missions, the LinkedIn export reader, the Python contracts
+npm install && npm test              # 281 vitest tests: scenarios, reducer, scoring, missions, scorecards, the fix list, the LinkedIn reader, the Python contracts
 npm run build                        # type-check + production build
 cd server && python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Windows; bin/ on Linux
-cd server && python -m pytest        # 427 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
+cd server && python -m pytest        # 447 tests: network policy, guards, archive reading, rules, pipeline, Orchestrator, CLI
 python -m guardscan.cli dir .. --repo owner/name --offline --fail-on high --ignore-file ../.agentguard-ignore   # scan this repo
 python -m guardscan.cli site example.com                      # read a website passively
 python -m guardscan.cli profile --file p.txt --role "..."      # review a pasted profile
@@ -49,6 +49,10 @@ node tools/e2e-assess.mjs                      # the Orchestrator on a planted w
    their own "Get a copy of your data" ZIP, which `src/assess/linkedinExport.ts` reads **in the browser** (only a short list of
    CSV files is decompressed, with size limits; address, birth date, zip code, maiden name and emails never leave it). Do not
    add a server route that takes that ZIP, and do not add a LinkedIn fetcher.
+5a. **A sitemap is read with `str.find`, never an XML parser or a regex over the file** (`assess/site_seo.py`), and robots.txt is split
+   line by line with a cap. Pages that the Scraper opens from a sitemap are the site's own addresses, robots.txt-allowed, same site, at most three.
+   The scorecards (`src/assess/scorecard.ts`) name rule ids that the server produces: `server/tests/test_scorecard_contract.py` fails when one
+   is misspelt, so add a rule to both sides.
 5b. **Regexes on text that someone else wrote must stay linear.** A nested or open-ended quantifier on a 100 KB string can take
    minutes and stall the server. Split into tokens or sentences first (`assess/textutil.py`), bound every quantifier, and
    keep the hostile-page test in `tests/test_site.py` green. CPU-heavy steps run in a thread.

@@ -47,6 +47,9 @@ runs no scripts, and stores nothing. If it did something else, please report it.
 - Only masked, short excerpts are sent to a language model, and only when a key is configured: to Gemini, and, only if the operator configured
   one (`AI_API_KEY`), to a backup provider when no Gemini model answers. The interface says when the backup wrote the text. For a pasted profile,
   contact details are replaced first. A search server (optional) only ever receives a site's own name or the role a person typed.
+- A website's `sitemap.xml` is read with plain string scanning (no XML parser, so no entity expansion), capped at 1 MB and 50,000 addresses.
+  Besides the home page and up to five linked pages, up to three pages that the sitemap itself lists, and the first child of a sitemap index,
+  are opened as a spot check: same site only, robots.txt obeyed, GET only.
 - LinkedIn and other logged-in sites are never fetched. A person pastes their own text, or chooses their own LinkedIn "Get a copy of
   your data" ZIP, which is **read in the browser and never uploaded**: only a short list of CSV files is decompressed (with size and
   count limits against a zip bomb), the address, birth date, zip code, maiden name and email addresses are dropped, and the server

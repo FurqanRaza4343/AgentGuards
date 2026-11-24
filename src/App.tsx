@@ -88,7 +88,7 @@ export default function App() {
       )}
       {(view === 'site' || view === 'profile') && <OrchestratorView kind={view} onExit={() => go('intro')} onPlay={(r) => play({ kind: r.kind, report: r })} />}
       {view === 'missions' && missions.length > 0 && (
-        <Game key={missions[0].id} onExit={() => go('intro')} scenarios={missions} onAnalyse={() => go(hashOf(source?.kind ?? 'repo').slice(1))} />
+        <Game key={missions[0].id} onExit={() => go('intro')} scenarios={missions} onAnalyse={() => go(hashOf(source?.kind ?? 'repo').slice(1))} report={source && source.kind !== 'repo' ? source.report : null} />
       )}
     </>
   );

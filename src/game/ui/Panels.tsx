@@ -89,6 +89,16 @@ interface StatusProps {
 }
 
 /** Safety, work, and audit tokens of the level in progress. Blocking everything fills one bar and starves the other. */
+/** Pressure mode: how long the agent will wait. It is a timer (not a live region), so a screen reader is not interrupted every second. */
+export function PressureBar({ left, total }: { left: number; total: number }) {
+  return (
+    <div className={`gclock${left <= 8 ? ' low' : ''}`} role="timer" aria-label={`The agent goes ahead in ${left} seconds`}>
+      <span>The agent goes ahead in {left}s</span>
+      <i style={{ width: `${Math.max(0, Math.min(100, (left / total) * 100))}%` }} />
+    </div>
+  );
+}
+
 export function StatusBar({ safety, safetyMax, work, workMax, auditsLeft }: StatusProps) {
   return (
     <div className="gstatus">

@@ -13,6 +13,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 _FAKE_KEY = "AK" + "IA" + "ZZ46J3YTB2" + "XQRM5P"
+DEMO_HOST = "brightside-bakery.example"
 
 HOME = """<html>
 <head>
@@ -50,20 +51,33 @@ CONTACT = """<!doctype html><html lang="en"><head><title>Contact Brightside Bake
 </head><body><h1>Contact</h1><form action="/send" method="post"><input type="text" name="name"><textarea name="message"></textarea><button></button></form></body></html>
 """
 
-ROBOTS = "User-agent: *\nDisallow: /admin/\nDisallow: /backup/\nAllow: /\n"
+# planted: a folder of stylesheets that search engines are told to skip, and nothing about AI crawlers
+ROBOTS = "User-agent: *\nDisallow: /admin/\nDisallow: /backup/\nDisallow: /css/\nAllow: /\n\nSitemap: {origin}/sitemap.xml\n"
+
+# planted: an old date, two pages that are gone, a page of another site, and a plain http address on an https site
+SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>{origin}/</loc><lastmod>2023-02-01</lastmod></url>
+<url><loc>{origin}/about</loc><lastmod>2023-02-01</lastmod></url>
+<url><loc>{origin}/contact</loc><lastmod>2023-02-01</lastmod></url>
+<url><loc>{origin}/old-menu</loc><lastmod>2022-06-10</lastmod></url>
+<url><loc>{origin}/offers</loc><lastmod>2022-06-10</lastmod></url>
+<url><loc>https://partner-bakery.example/deal</loc></url>
+<url><loc>http://{host}/about</loc></url>
+</urlset>
+"""
 
 
-def pages() -> dict[str, tuple[int, dict[str, str], str]]:
+def pages(origin: str = f"https://{DEMO_HOST}") -> dict[str, tuple[int, dict[str, str], str]]:
     base = {"Content-Type": "text/html; charset=utf-8", "Server": "nginx/1.18.0"}
+    host = origin.split("://", 1)[1]
     return {
         "/": (200, {**base, "Set-Cookie": "sessionid=demo123; Path=/", "Access-Control-Allow-Origin": "*"}, HOME.format(key=_FAKE_KEY)),
         "/about": (200, base, ABOUT),
         "/contact": (200, base, CONTACT),
-        "/robots.txt": (200, {"Content-Type": "text/plain"}, ROBOTS),
+        "/robots.txt": (200, {"Content-Type": "text/plain"}, ROBOTS.format(origin=origin)),
+        "/sitemap.xml": (200, {"Content-Type": "application/xml"}, SITEMAP.format(origin=origin, host=host)),
     }
-
-
-DEMO_HOST = "brightside-bakery.example"
 
 
 def mock_client_factory(host: str = DEMO_HOST):  # type: ignore[no-untyped-def]
@@ -73,7 +87,7 @@ def mock_client_factory(host: str = DEMO_HOST):  # type: ignore[no-untyped-def]
     """
     import httpx
 
-    table = pages()
+    table = pages(f"https://{host}")
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host != host:
@@ -87,7 +101,8 @@ def mock_client_factory(host: str = DEMO_HOST):  # type: ignore[no-untyped-def]
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         path = self.path.split("?", 1)[0]
-        status, headers, body = pages().get(path, (404, {"Content-Type": "text/plain"}, "not found"))
+        origin = f"http://{self.headers.get('Host') or '127.0.0.1'}"
+        status, headers, body = pages(origin).get(path, (404, {"Content-Type": "text/plain"}, "not found"))
         data = body.encode("utf-8")
         self.send_response(status)
         for k, v in headers.items():

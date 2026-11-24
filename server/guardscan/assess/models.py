@@ -82,4 +82,5 @@ class AssessReport(BaseModel):
     backup: bool = False  # True when that model was the backup provider, not Gemini: the interface must say so
     runLog: list[LogLine]
     disclaimers: list[str]
+    facts: dict[str, str] = Field(default_factory=dict)  # short facts for the scorecard when a check passes (site only)
     demo: bool | None = None

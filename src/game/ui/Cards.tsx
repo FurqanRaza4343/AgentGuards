@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { AGENTS, TOOL_LABEL } from '../../agents';
 import { Brk, Icon } from '../../components/ui';
 import { guideById } from '../guide';
+import { PRESSURE_SECONDS } from '../fixPlan';
 import type { HistoryEntry, LevelResult } from '../gameReducer';
 import { BADGES, badgeById, type Progress } from '../progress';
 import { cap, unitOf } from '../labels';
@@ -164,7 +165,19 @@ export function IntroCard({
 
 // ------------------------------------------------------------------ briefing
 
-export function BriefCard({ scenario, onBegin, onGuide }: { scenario: Scenario; onBegin: () => void; onGuide: (id: string) => void }) {
+export function BriefCard({
+  scenario,
+  onBegin,
+  onGuide,
+  pressure,
+  onPressure,
+}: {
+  scenario: Scenario;
+  onBegin: () => void;
+  onGuide: (id: string) => void;
+  pressure: boolean;
+  onPressure: (on: boolean) => void;
+}) {
   return (
     <Card label={`${cap(unitOf(scenario))} ${scenario.level} · ${scenario.subtitle}`} labelledBy="g-brief">
       <h2 id="g-brief">{scenario.title}</h2>
@@ -174,6 +187,12 @@ export function BriefCard({ scenario, onBegin, onGuide }: { scenario: Scenario; 
         {scenario.agents.map((a) => AGENTS[a].name).join(', ')}
       </p>
       <Chips ids={scenario.concepts} onGuide={onGuide} />
+      <label className="gpressure-opt">
+        <input type="checkbox" checked={pressure} onChange={(e) => onPressure(e.target.checked)} />
+        <span>
+          <b>Pressure mode</b> (optional). A real agent does not wait: if you have not decided in {PRESSURE_SECONDS} seconds, it goes ahead on its own.
+        </span>
+      </label>
       <div className="gactions">
         <button className="gbtn primary" type="button" data-autofocus="" aria-describedby="g-brief-body" onClick={onBegin}>
           Start simulation <Icon name="right" />
@@ -214,10 +233,15 @@ export function ScenarioCard({ step, stepNumber, stepCount, deciding, reveal }: 
 
 const sign = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-export function OutcomeCard({ option, last, onContinue }: { option: Option; last: boolean; onContinue: () => void }) {
+export function OutcomeCard({ option, last, onContinue, streak = 0, timedOut = false }: { option: Option; last: boolean; onContinue: () => void; streak?: number; timedOut?: boolean }) {
   const tone = option.verdict;
   return (
     <Card label="Outcome" labelledBy="g-outcome">
+      {timedOut && (
+        <p className="gtimeout" role="status">
+          Time ran out, so the agent went ahead on its own.
+        </p>
+      )}
       <div className={`gverdict ${tone}`} role="status">
         <Icon name={tone === 'safe' ? 'check' : tone === 'risky' ? 'cross' : 'info'} />
         <span id="g-outcome">{tone === 'safe' ? 'Safe choice' : tone === 'risky' ? 'Risky choice' : 'Safe, but nothing got done'}</span>
@@ -225,6 +249,11 @@ export function OutcomeCard({ option, last, onContinue }: { option: Option; last
           Safety {sign(option.safety)} · Work {sign(option.work)}
         </b>
       </div>
+      {streak >= 2 && tone === 'safe' && (
+        <p className="gstreak" role="status">
+          <Icon name="star" className="on" /> {streak} safe choices in a row
+        </p>
+      )}
       <p id="g-outcome-body">{option.consequence}</p>
       <div className="glesson">
         <p className="glabel">Lesson</p>

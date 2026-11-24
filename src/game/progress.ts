@@ -67,7 +67,14 @@ export const BADGES: BadgeDef[] = [
   { id: 'human-loop', name: 'Human in the Loop', desc: 'Ask a human three times.' },
   { id: 'not-paranoid', name: 'Not Paranoid', desc: 'Approve a legitimate request without asking anyone.' },
   { id: 'guardian-all', name: 'Guardian', desc: 'Earn a Guardian rating on every level.' },
+  { id: 'repo-guardian', name: 'Merge Master', desc: 'Earn Guardian on a mission built from your own repository.' },
+  { id: 'site-guardian', name: 'Web Sheriff', desc: 'Earn Guardian on a mission built from your own website.' },
+  { id: 'profile-guardian', name: 'Profile Pro', desc: 'Earn Guardian on a mission built from your own profile.' },
+  { id: 'triple-play', name: 'Triple Play', desc: 'Win all three games: repository, website and profile.' },
 ];
+
+/** The badge that a Guardian mission earns, by the kind of thing it was built from. */
+export const KIND_BADGE = { repo: 'repo-guardian', site: 'site-guardian', profile: 'profile-guardian' } as const;
 
 export const badgeById = (id: string) => BADGES.find((b) => b.id === id);
 
@@ -81,7 +88,7 @@ interface Evaluated {
  * Pure: folds one finished level into the stored progress and works out new badges.
  * `levelIds` is the full list of level ids, needed for the "all levels" badge.
  */
-export function applyResult(prev: Progress, levelId: string, result: LevelResult, history: HistoryEntry[], levelIds: string[]): Evaluated {
+export function applyResult(prev: Progress, levelId: string, result: LevelResult, history: HistoryEntry[], levelIds: string[], source?: keyof typeof KIND_BADGE): Evaluated {
   const stars = starsFor(result.rating);
   const old = prev.levels[levelId];
   const record: LevelRecord = {
@@ -103,6 +110,8 @@ export function applyResult(prev: Progress, levelId: string, result: LevelResult
   add('human-loop', humanAsks >= 3);
   add('not-paranoid', history.some((h) => h.benign && h.kind === 'allow'));
   add('guardian-all', levelIds.every((id) => levels[id] && ratingFor(levels[id].best, levels[id].max) === 'Guardian'));
+  if (source) add(KIND_BADGE[source], result.rating === 'Guardian');
+  add('triple-play', Object.values(KIND_BADGE).every((id) => got.has(id)));
 
   const badges = [...got];
   return { progress: { v: 2, levels, badges, counters: { humanAsks } }, earned: badges.filter((b) => !prev.badges.includes(b)) };

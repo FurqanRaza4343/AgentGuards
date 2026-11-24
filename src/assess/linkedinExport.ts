@@ -283,7 +283,7 @@ function activityFindings(s: ExportStats, now: Date): { findings: AFinding[]; st
 }
 
 /** Adds what the export's numbers say to the report that the server made from the profile text. */
-export function mergeActivity(r: AssessReport, ex: ExportResult): AssessReport {
+export function mergeActivity(r: AssessReport, ex: Pick<ExportResult, 'findings' | 'strengths' | 'questions'>): AssessReport {
   const rank: Record<AFinding['severity'], number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   return {
     ...r,

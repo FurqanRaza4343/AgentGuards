@@ -43,9 +43,17 @@ Each robot's face shows its state (thinking, working, found problems, done) and 
 
 | Robot | Website | Profile (export or pasted text) |
 |---|---|---|
-| **Scraper / Reader** (DataRetriever) | Reads robots.txt, the home page and up to five linked pages, the sitemap, broken links | Splits the text into headline, About, experience, skills and says what is missing |
+| **Scraper / Reader** (DataRetriever) | Reads robots.txt, the home page and up to five linked pages, **sitemap.xml** (and opens a few of the pages it lists as a spot check), broken links | Splits the text into headline, About, experience, skills and says what is missing |
 | **Security / Privacy** (PurchasingAgent) | Headers, cookies, certificate, plain-http redirect, security.txt, mixed content, forms, secrets and notes in the page source, text written for AI readers | Phone, email, ID numbers, address, shortened links, secrets, text aimed at AI screening tools |
-| **Content / Impact** (FinanceAgent) | Titles, descriptions, headings, phones, accessibility, thin content, search visibility | Headline, About, numbers and results, buzzwords, keywords that hiring pages mention |
+| **Content / Impact** (FinanceAgent) | **Search (SEO):** titles, descriptions, headings, canonical addresses, duplicate titles, share previews, `X-Robots-Tag`, what **robots.txt** and **sitemap.xml** really say (hidden style folders, dead or foreign addresses, stale dates, no AI-crawler policy), plus phones, accessibility, thin content | Headline, About, numbers and results, buzzwords, keywords that hiring pages mention |
+
+**Scorecards.** Next to the list of findings, the report shows one number out of 100 and the checklist behind it. A website gets
+**Search health** (robots.txt, sitemap.xml, title, description, H1, phones, canonical, indexable, share preview, structured data, alt text,
+language, content, links) and **Security health** (certificate and https, HSTS, content security policy, cookies, forms, leaks, mixed
+content, AI text, ways to report); a profile gets **Profile strength** (headline, About, experience, numbers, skills, privacy, posting
+rhythm, certifications, recommendations, public address). A check is *fail*, *warn*, *pass* or *skip* (when it could not run), and its points
+shrink with each finding on it (high 100%, medium 60%, low 30%), so fixing one of two problems still raises the score. The cards are
+computed in the browser from the findings (`src/assess/scorecard.ts`); the server only sends short `facts` for a check that passes.
 
 What you get: a report grouped by severity with *what it means and how to fix it*, **5 to 8 questions** from Nova ("Which of
 your claims could a stranger check, and what fact proves each one?"), **3 to 5 rewrites** ("Now: Passionate software developer
@@ -54,7 +62,9 @@ seeking opportunities. Try: Backend Engineer | Building scalable APIs with Pytho
 Where the lines are drawn:
 
 - **Websites are read passively and politely:** a few ordinary page requests, robots.txt first and obeyed, no forms submitted,
-  no scripts run, no hidden paths guessed, a redirect to another site refused, one site read only a few times an hour.
+  no scripts run, no hidden paths guessed (the files that every site publishes by convention, `robots.txt`, `sitemap.xml` and
+  `security.txt`, are read, and so are up to three pages that the site itself lists in its sitemap), a redirect to another site refused,
+  one site read only a few times an hour. A sitemap is read with plain string scanning, not an XML parser, and every list is capped.
   Findings explain what and why, never attack steps. If you find a real problem on a site that is not yours, tell its owner privately.
 - **LinkedIn is not scraped, and a LinkedIn address is not opened.** LinkedIn forbids automated collection, shows a login wall to
   programs and blocks servers, and a profile belongs to a person who has not agreed to be read. The compliant way in is LinkedIn's
@@ -65,6 +75,9 @@ Where the lines are drawn:
   and turns the numbers into findings ("You posted 2 times in 12 months", "No certifications are listed") and questions. Only the profile
   text (without address, birth date, zip code, maiden name or emails) and one line of numbers go to the review. You can also paste text,
   or press **Use a sample export** to try it with a fictional person. Contact details are replaced before any excerpt goes to a language model.
+  **The profile address** can be typed in as well. It is only *looked at as text* (`src/assess/linkedinUrl.ts`: is it `linkedin.com/in/...`, is
+  it a custom address or the long default with random letters; a custom one is a strength, the default one a finding), and the page offers
+  **Open my profile in a new tab**, so that you can press Ctrl+A and Ctrl+C there yourself and paste the text. Nothing is fetched.
 - **Gemini writes the questions, and every answer is checked** (ids must exist, quotes must be in your own text, links and
   commands are removed, text that talks to an AI reader is dropped). Without a key, templates write the questions from the same findings.
 - **Search is optional** (SearXNG, `SEARXNG_URL`). Only the site's name or the role you typed ever leaves the server.
@@ -129,6 +142,18 @@ Seven levels, four agents, about 30 minutes for the whole thing.
 5. **Outcome.** What happened, the lesson, and your points.
 6. **Debrief.** Per decision: what you chose, what the red flags were, and *"what if you had allowed it?"*.
 
+### Three games, and what the extras do
+
+The games are three big tiles at the top of each analysis page (**Game 1** GitHub repo, *merge or block?*; **Game 2** Website, *publish or
+stop?*; **Game 3** LinkedIn, *post or fix?*). Each mission is built from a real finding.
+
+- **Your fix list.** When a mission ends, the game lists the real fixes it was about: *You asked for the fix*, *Blocked, but still not
+  fixed*, *You let it through*. For a website or a profile it shows what your score would be now, with the fixes you asked for, and with
+  all of them (only for the scores those fixes can move), and **Copy my fix list** gives a checklist to paste into an issue.
+- **Pressure mode** (optional, off by default): a clock of 25 seconds per decision. A real agent does not wait, so when it runs out the agent goes
+  ahead on its own (the "allow" option), the outcome says so, and the log says *automatically*, not *by you*. Scoring does not change.
+- **Streak**: consecutive safe choices are counted on the outcome card. An Audit neither adds to the streak nor breaks it.
+
 ### Scoring: safety versus work
 
 Every choice earns **Safety** points (negative when it leads to harm) and **Work** points (how much of the job still got
@@ -138,7 +163,9 @@ done). You also earn bonus points for each real red flag you found yourself.
 - Some requests are **legitimate** (a colleague's invite, a verified tool, a small refund inside policy). Blocking those
   is *over-blocking*: safe, but nothing gets done.
 - Rating is the share of the maximum: Guardian 80% and above, Cautious 50%, otherwise At risk. Stars follow the rating.
-- **Badges**: Sharp Eye, Flawless, Least Privilege, Safe Hands, Human in the Loop, Not Paranoid, Guardian.
+- **Badges**: Sharp Eye, Flawless, Least Privilege, Safe Hands, Human in the Loop, Not Paranoid, Guardian, and one for each of the three
+  games (**Merge Master**, **Web Sheriff**, **Profile Pro**: Guardian on a mission built from your own repository, website or profile),
+  then **Triple Play** for all three.
 - Progress, stars and badges are kept in `localStorage`. A **Field guide** explains every idea in plain language and every
   level links to its concepts. Quiet synthesised sound effects, with a mute switch.
 
@@ -162,7 +189,7 @@ from templates.
 ```bash
 npm install
 npm run dev          # http://127.0.0.1:5173  (the campaign and the demo work with just this)
-npm test             # 249 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
+npm test             # 281 tests: scenarios, reducer, scoring, mission builder, validator, the Python report contracts
 npm run build        # type-check + production build into dist/
 npm run preview      # production build on http://127.0.0.1:4173 with the same strict CSP as the scanner serves
 ```
@@ -173,7 +200,7 @@ For real runs, start the scanner in a second terminal (Python 3.11 or newer; the
 cd server
 python -m venv .venv
 .venv/Scripts/pip install -r requirements-dev.txt        # .venv/bin/pip on Linux and macOS
-.venv/Scripts/python -m pytest                           # 427 tests, no network and no key needed
+.venv/Scripts/python -m pytest                           # 447 tests, no network and no key needed
 .venv/Scripts/python -m uvicorn guardscan.api:app --host 127.0.0.1 --port 8000
 ```
 
@@ -245,7 +272,8 @@ src/
                          missionSource.ts (what the missions were built from, kept for a reload of the tab)
   assess/                the Orchestrator screens: OrchestratorView, Crew (status list and the captions on the 3D stage),
                          beams, ModeTabs, the report types and their validation, the client,
-                         linkedinExport.ts (reads the LinkedIn data ZIP in the browser) and ActivityCard (posts per month, certifications)
+                         linkedinExport.ts (reads the LinkedIn data ZIP in the browser) and ActivityCard (posts per month, certifications),
+                         linkedinUrl.ts (the profile address, looked at as text), scorecard.ts and ScoreCardView (the scores out of 100)
   lib/                   sound.ts (Web Audio), storage helpers, media-query hooks
 server/                  the Python scanner: see server/README.md
 tests/                   vitest: game, validate, missions, assess, demoReport (+ fixtures)

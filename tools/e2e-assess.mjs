@@ -161,7 +161,10 @@ try {
   // ================================================================ a website
   let { ctx, page } = await open({ width: 1440, height: 900 }, `${base}/#site`);
   await shot(page, 'assess-1-site-form');
-  check((await page.locator('.lmodes a').count()) === 3 && (await page.locator('.lmodes a.on').textContent()) === 'Website', 'the three modes are links, and Website is the current one');
+  check((await page.locator('.lmodes a').count()) === 3 && (await page.locator('.lmodes a.on .lmode-label').textContent()) === 'Website', 'the three games are links, and Website is the current one');
+  check(/Game 1.*GitHub repo.*Game 2.*Website.*Game 3.*LinkedIn/s.test((await page.locator('.lmodes').textContent()) ?? ''), 'the tiles say Game 1, Game 2 and Game 3 and name what each reads');
+  const tile = await page.locator('.lmodes a').first().boundingBox();
+  check(tile !== null && tile.height >= 80 && tile.width >= 100, `each tile is big enough to read and to hit (${Math.round(tile?.width ?? 0)} x ${Math.round(tile?.height ?? 0)})`);
   const runBtn = page.getByRole('button', { name: /Read this website/ });
   check(await runBtn.isDisabled(), 'the run button is off until the consent box is ticked');
   await page.fill('#site-url', 'http://127.0.0.1:8787/');
@@ -184,6 +187,15 @@ try {
   check(health.model ? /Gemini wrote the questions/.test(text) : /from templates/.test(text), health.model ? 'Gemini wrote the questions (live)' : 'the questions came from templates (no key)');
   check(await page.locator('.limp li').count() >= 1, 'there are suggested rewrites');
   check(/Content-Security-Policy|Strict-Transport|description/i.test(text) && (await page.locator('.lfind li').count()) >= 8, `the findings are listed (${await page.locator('.lfind li').count()} shown)`);
+  const cardTitles = await page.locator('.lscore > .glabel').allTextContents();
+  check(cardTitles.join('|') === 'Search health|Security health', 'a website gets two scorecards: Search health and Security health');
+  const scores = (await page.locator('.lring-n').allTextContents()).map(Number);
+  check(scores.length === 2 && scores.every((n) => Number.isInteger(n) && n >= 0 && n <= 100), `each card shows a number out of 100 (${scores.join(' and ')})`);
+  const sitemapRow = page.locator('.lchecks li', { hasText: 'sitemap.xml' });
+  const robotsRow = page.locator('.lchecks li', { hasText: 'robots.txt' });
+  check((await sitemapRow.count()) === 1 && /c-fail/.test((await sitemapRow.getAttribute('class')) ?? '') && /sitemap/i.test((await sitemapRow.textContent()) ?? ''), 'the sitemap.xml row needs fixing (the planted sitemap lists a dead page and another website)');
+  check((await robotsRow.count()) === 1 && /c-(fail|warn)/.test((await robotsRow.getAttribute('class')) ?? ''), 'the robots.txt row is flagged (the planted file hides the style folder)');
+  await shot(page, 'assess-3b-site-scorecards');
   check(queries.some((q) => q === 'Welcome'), `the search server was asked only for the site's name (queries: ${JSON.stringify(queries.slice(0, 3))})`);
   check(/does not show your site|Searching for/i.test(text), 'the search result is part of the report');
   const rows = await page.locator('.lcrew-row').allTextContents();
@@ -206,6 +218,28 @@ try {
   const sm = await page.textContent('body');
   check(/Approve and publish/.test(sm) && !/Approve and merge|pull request|commit/i.test(sm), 'the first website mission is worded for a website: "Approve and publish", no merge or commit');
   await shot(page, 'assess-4b-site-mission-step');
+  for (let guard = 0; guard < 8; guard++) {
+    await page.waitForSelector('.dbar', { timeout: 30000 });
+    await page.waitForTimeout(700);
+    await page.keyboard.press((await page.locator('.dbtn').count()) === 4 ? '4' : '1'); // ask for the fix on a threat, approve a legitimate request
+    await page.waitForSelector('.gverdict', { timeout: 8000 });
+    await page.waitForTimeout(800);
+    const lastStep = await page.getByRole('button', { name: /See results/ }).count();
+    await page.getByRole('button', { name: lastStep ? /See results/ : /Continue/ }).click();
+    if (lastStep) break;
+  }
+  await page.waitForSelector('#g-summary', { timeout: 10000 });
+  await page.waitForSelector('.gfix', { timeout: 5000 });
+  check(/Guardian/.test(await page.textContent('#g-summary')), 'the website mission ends as Guardian on the best path');
+  check(/Web Sheriff/.test((await page.locator('.gnewbadge').textContent()) ?? ''), 'a Guardian website mission earns the Web Sheriff badge');
+  const movable = await page.locator('.gfix-score').count();
+  check(movable >= 1 && movable <= 2, `the fix list shows what the fixes are worth, for the scores that they can move (${movable} of 2)`);
+  const fixRows = await page.locator('.gfix-score').evaluateAll((els) => els.map((e) => [...e.querySelectorAll('b')].map((b) => Number(b.textContent))));
+  check(fixRows.every(([now, asked, all]) => asked >= now && all >= asked) && fixRows.some(([now, asked]) => asked > now), `fixing raises a score and never lowers one (${fixRows.map((r) => r.join(' > ')).join('; ')})`);
+  check((await page.locator('.gfix-list li.requested').count()) >= 1 && (await page.locator('.gfix-list li.missed').count()) === 0, 'the fixes that were asked for are listed as asked for');
+  await page.getByRole('button', { name: /Copy my fix list/ }).click();
+  await page.waitForSelector('.gfix [role=status]', { timeout: 3000 });
+  await shot(page, 'assess-4c-site-fixlist');
   await ctx.close();
 
   // a site that is not there: a clear message, not a hang
@@ -219,7 +253,7 @@ try {
 
   // ================================================================ a profile
   ({ ctx, page } = await open({ width: 1440, height: 900 }, `${base}/#profile`));
-  check((await page.locator('.lmodes a.on').textContent()) === 'Profile', 'the Profile page opens from its link');
+  check((await page.locator('.lmodes a.on .lmode-label').textContent()) === 'LinkedIn', 'the LinkedIn page opens from its link');
   const pbtn = page.getByRole('button', { name: /Review this profile/ });
   await page.fill('#profile-text', 'too short');
   await page.getByRole('checkbox').check();
@@ -304,6 +338,26 @@ try {
   await page.locator('.lfile input[type=file]').setInputFiles(path.join(outDir, 'not-a-zip.zip'));
   await page.waitForSelector('.lexport .lhint', { timeout: 8000 });
   check(/does not look like a ZIP/i.test(await page.textContent('.lexport .lhint')), 'a file that is not a ZIP is explained in plain words');
+  await ctx.close();
+
+  // ================================================================ pressure mode: a real agent does not wait
+  ({ ctx, page } = await open({ width: 1440, height: 900 }, `${base}/#profile`));
+  await page.getByRole('button', { name: /Play the demo/ }).click();
+  await page.waitForSelector('#o-done', { timeout: 60000 });
+  await page.getByRole('button', { name: /Play \d+ missions?/ }).click();
+  await page.getByRole('button', { name: /Begin (level|mission) 1/i }).first().click();
+  check((await page.locator('.gpressure-opt').count()) === 1 && !(await page.locator('.gpressure-opt input').isChecked()), 'the briefing offers pressure mode, and it is off until the player turns it on');
+  await page.locator('.gpressure-opt input').check();
+  await page.getByRole('button', { name: /Start simulation/i }).first().click();
+  await page.waitForSelector('.dbar', { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  check((await page.locator('.gclock').count()) === 1, 'a clock runs while the player decides');
+  const secs = Number(((await page.locator('.gclock span').textContent()) ?? '').match(/(\d+)s/)?.[1]);
+  check(secs > 0 && secs < 25, `the clock counts down (${secs}s left)`);
+  await shot(page, 'assess-4d-pressure-clock');
+  await page.waitForSelector('.gtimeout', { timeout: 40000 });
+  check(/went ahead on its own/.test((await page.locator('.gtimeout').textContent()) ?? '') && (await page.locator('.gverdict').count()) === 1, 'when the time runs out the agent goes ahead on its own, and the outcome says so');
+  await shot(page, 'assess-4e-pressure-timeout');
   await ctx.close();
 
   // ================================================================ the demos work with nothing running but the page

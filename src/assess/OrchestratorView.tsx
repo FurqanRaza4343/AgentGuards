@@ -15,6 +15,9 @@ import { CrewStatus, StageCaptions } from './Crew';
 import { ActivityCard } from './ActivityCard';
 import { ExportError, mergeActivity, readExportZip, sampleExport } from './linkedinExport';
 import type { ExportResult } from './linkedinExport';
+import { analyseLinkedInUrl } from './linkedinUrl';
+import { ScoreCardView } from './ScoreCardView';
+import { scorecardsOf } from './scorecard';
 import { ModeTabs } from './ModeTabs';
 import { buildAssessMissions } from '../missions/assessReport';
 import { AREA_LABEL, assessToMarkdown, countBySeverity } from './types';
@@ -45,6 +48,19 @@ const COPY: Record<AssessKind, { label: string; title: string; intro: string; ru
 
 const SEV_ORDER: AFinding['severity'][] = ['critical', 'high', 'medium', 'low', 'info'];
 
+/** Facts that only this page knows (what a LinkedIn export held, and the profile address): the scorecard shows them when a check passes. */
+function profileFacts(exported: ExportResult | null, address: ReturnType<typeof analyseLinkedInUrl> | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (exported) {
+    const s = exported.stats;
+    if (s.hasPosts) out.activity = `${s.postsLast12} post${s.postsLast12 === 1 ? '' : 's'} in the last 12 months`;
+    if (s.hasCertFile) out.certs = `${s.certifications.length} certification${s.certifications.length === 1 ? '' : 's'} listed`;
+    if (s.found.includes('recommendations_received.csv')) out.recs = `${s.recommendations} received`;
+  }
+  if (address?.ok) out.url = `linkedin.com/in/${address.handle.slice(0, 40)}`;
+  return out;
+}
+
 export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; onExit: () => void; onPlay?: (report: AssessReport) => void }) {
   const copy = COPY[kind];
   const [phase, setPhase] = useState<Phase>('form');
@@ -54,6 +70,7 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
   const [consent, setConsent] = useState(false);
   const [exported, setExported] = useState<ExportResult | null>(null);
   const [exportNote, setExportNote] = useState('');
+  const [liUrl, setLiUrl] = useState('');
   const [log, setLog] = useState<LogLine[]>([]);
   const [report, setReport] = useState<AssessReport | null>(null);
   const [error, setError] = useState('');
@@ -90,6 +107,7 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
     setShowAll(false);
     setExported(null);
     setExportNote('');
+    setLiUrl('');
   }, [kind]);
 
   const handleLine = useCallback((line: LogLine) => {
@@ -120,7 +138,13 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
   };
 
   const finish = (r: AssessReport) => {
-    setReport(exported && kind === 'profile' && !r.demo ? mergeActivity(r, exported) : r);
+    let out = r;
+    if (kind === 'profile' && !r.demo) {
+      if (exported) out = mergeActivity(out, exported);
+      if (liInfo?.ok) out = mergeActivity(out, liInfo);
+      out = { ...out, facts: { ...out.facts, ...profileFacts(exported, liInfo) } };
+    }
+    setReport(out);
     setPhase('done');
     setStates((s) => ({ ...s, nova: 'success' }));
   };
@@ -190,6 +214,8 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
     }
   };
 
+  const liInfo = useMemo(() => (kind === 'profile' && liUrl.trim() ? analyseLinkedInUrl(liUrl) : null), [kind, liUrl]);
+  const cards = useMemo(() => (report ? scorecardsOf(report) : []), [report]);
   const counts = report ? countBySeverity(report.findings) : {};
   const real = useMemo(() => (report ? report.findings.filter((f) => f.severity !== 'info') : []), [report]);
   const missionCount = useMemo(() => (report ? buildAssessMissions(report).missions.length : 0), [report]);
@@ -235,10 +261,25 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
             ) : (
               <>
                 <div className="lexport">
-                  <p className="glabel">Your LinkedIn data · recommended</p>
+                  <p className="glabel">Your LinkedIn · three ways in</p>
+                  <label htmlFor="li-url">1 · Your profile address (optional)</label>
+                  <input id="li-url" type="text" inputMode="url" autoComplete="off" spellCheck={false} maxLength={300} placeholder="linkedin.com/in/your-name" value={liUrl} onChange={(e) => setLiUrl(e.target.value)} />
+                  {liInfo && !liInfo.ok && <p className="lhint lerr" role="status">{liInfo.message}</p>}
+                  {liInfo?.ok && (
+                    <p className="lhint lurl" role="status">
+                      {liInfo.custom ? 'A custom address, which is good. ' : 'This looks like the default address that LinkedIn makes, so it will be in the report. '}
+                      <a href={liInfo.url} target="_blank" rel="noopener noreferrer">Open my profile in a new tab ↗</a>
+                    </p>
+                  )}
                   <p>
-                    A LinkedIn <b>address</b> cannot be opened: LinkedIn forbids automated access, shows a login wall to programs, and blocks servers, so AgentGuard does not try. Your own <b>data export</b> is
-                    allowed, and it holds more than the page shows: the date of every post and every certification. It is read here, in your browser.
+                    The page behind that address <b>cannot be opened</b> by AgentGuard: LinkedIn forbids automated access, shows a login wall to programs and blocks servers, and a profile is yours to share, not ours to take.
+                    So the address is checked as text only. To read the profile itself, use one of these:
+                  </p>
+                  <p>
+                    <b>2 · Fastest, 30 seconds:</b> open your profile with the link above, press Ctrl+A and then Ctrl+C, and paste into the box below.
+                  </p>
+                  <p>
+                    <b>3 · Best, about 10 minutes:</b> your own <b>data export</b>. It holds more than the page shows: the date of every post and every certification. It is read here, in your browser, and never uploaded.
                   </p>
                   <div className="gactions">
                     <label className="gbtn lfile">
@@ -372,6 +413,10 @@ export function OrchestratorView({ kind, onExit, onPlay }: { kind: AssessKind; o
               {copied && <p className="gnote" role="status">Copied. The summary lists questions, rewrites and fixes, never the excerpts.</p>}
               <Brk />
             </section>
+
+            {cards.map((c) => (
+              <ScoreCardView key={c.title} card={c} />
+            ))}
 
             {exported && kind === 'profile' && !report.demo && <ActivityCard stats={exported.stats} />}
 

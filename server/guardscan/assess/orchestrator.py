@@ -33,6 +33,7 @@ from .models import AFinding, AgentSummary, AssessReport, AssessStats, SearchInf
 from .nova import Brief, Nova, NovaUnavailable, NullNova, fallback, prepare_untrusted, verify
 from .search import SearchUnavailable, SearxClient
 from .site_content import check_page_basics
+from .site_seo import Sitemap, merge_child, page_key, page_set_checks, read_sitemap, robots_checks, sample_urls, site_facts, sitemap_checks
 from .site_security import check_headers, check_pages, check_robots, check_security_txt, check_transport
 
 Event = tuple[str, dict[str, Any]]
@@ -152,7 +153,8 @@ class _SiteRun:
         self.home_f: asyncio.Future[Fetched | None] = loop.create_future()
         self.pages_f: asyncio.Future[list[tuple[Fetched, PageData]]] = loop.create_future()
         self.books = {"data": FindingBook("data"), "purchasing": FindingBook("purchasing"), "finance": FindingBook("finance")}
-        self.sitemap_status: int | None = None
+        self.sitemap: Sitemap | None = None
+        self.facts: dict[str, str] = {}
         self.tls_problem: str | None = None
         self.search_info = SearchInfo(used=False, note="No search server is configured, so the discoverability check was skipped.")
         self.summaries: dict[str, AgentSummary] = {}
@@ -218,12 +220,8 @@ class _SiteRun:
                     continue
                 pages.append((r, await asyncio.to_thread(parse_html, r.text, r.url)))
                 h.log(f"Scraper: {path} {r.status}, {max(1, len(r.body) // 1024)} KB", "info", "data", state="working", task=f"Reading page {i + 1} of {len(candidates) + 1}")
-            # a sitemap tells search engines which pages exist
-            try:
-                sm = await self.web.get(robots.sitemaps[0] if robots.sitemaps and same_site(host_of(robots.sitemaps[0]), self.host) else f"{self.origin}/sitemap.xml", max_bytes=50_000, site_host=self.host, accept="application/xml,text/xml,*/*;q=0.5")
-                self.sitemap_status = sm.status
-            except FetchError:
-                self.sitemap_status = None
+            # a sitemap tells search engines which pages exist: read it, and open a few of the pages it lists as a spot check
+            self.sitemap = await self._read_sitemap(robots.sitemaps[0] if robots.sitemaps and same_site(host_of(robots.sitemaps[0]), self.host) else f"{self.origin}/sitemap.xml", robots, pages)
             if broken:
                 book.add("content.broken-links", "content", "medium", f"{_plural(len(broken), 'page')} linked from the home page did not load",
                          "Visitors and search engines who follow these links land on an error. Broken links make a site look abandoned.",
@@ -242,6 +240,38 @@ class _SiteRun:
             raise AssessError("The pages could not be read.")
         finally:
             self._release()
+
+    async def _read_sitemap(self, url: str, robots: Robots, pages: list[tuple[Fetched, PageData]]) -> Sitemap:
+        h = self.hub
+        h.log("Scraper: looking for the sitemap", "tool", "data", state="working", task="Reading the sitemap")
+        try:
+            f = await self.web.get(url, max_bytes=1_000_000, site_host=self.host, accept="application/xml,text/xml,*/*;q=0.5")
+        except FetchError:
+            return Sitemap(url=url)
+        sm = await asyncio.to_thread(read_sitemap, f, url)  # in a thread: a hostile file must not stall other requests
+        if sm.kind == "index" and sm.child_urls and same_site(host_of(sm.child_urls[0]), self.host):
+            try:
+                child = await self.web.get(sm.child_urls[0], max_bytes=1_000_000, site_host=self.host, accept="application/xml,text/xml,*/*;q=0.5")
+                merge_child(sm, await asyncio.to_thread(read_sitemap, child, sm.child_urls[0]))
+            except FetchError:
+                pass
+        if sm.kind not in {"urlset", "index"} or not sm.urls:
+            h.log(f"Scraper: sitemap {'not found' if sm.status in {404, 410, None} else 'answered ' + str(sm.status) + ' (' + sm.kind + ')'}", "info", "data", state="working", task="Reading the sitemap")
+            return sm
+        already = {page_key(p.url) for _, p in pages}
+        picks = sample_urls(sm, self.host, already, robots.allows)
+        h.log(f"Scraper: sitemap lists {_plural(len(sm.urls), 'page')}. Opening {_plural(len(picks), 'of them')} as a spot check", "info", "data", state="working", task="Checking the sitemap")
+        for u in picks:
+            self.budget.check_time()
+            path = urlsplit(u).path or "/"
+            try:
+                r = await self.web.get(u, max_bytes=20_000, site_host=self.host)
+            except FetchError:
+                sm.sample_broken.append(path)
+                continue
+            if r.status >= 400:
+                sm.sample_broken.append(f"{path} ({r.status})")
+        return sm
 
     # ---- Security (purchasing)
     async def security(self) -> None:
@@ -301,9 +331,14 @@ class _SiteRun:
 
             await asyncio.to_thread(review)
             robots = await self.robots_f
-            if self.sitemap_status in {404, 410} and not (robots and robots.sitemaps):
-                book.add("seo.sitemap.missing", "seo", "low", "No sitemap", "A sitemap lists the pages you want search engines to find. Small sites can be found without one, bigger sites need it.",
-                         "Publish /sitemap.xml and add a `Sitemap:` line to robots.txt.", evidence="/sitemap.xml: 404", location=f"{self.origin}/sitemap.xml")
+            h.log("Content: reading what robots.txt and the sitemap say, and comparing the pages", "tool", "finance", state="working", task="Checking robots.txt and the sitemap")
+            sm = self.sitemap
+            if robots is not None:
+                robots_checks(robots, book, self.origin, self.host, sitemap_found=bool(sm and sm.status == 200 and sm.kind in {"urlset", "index"}))
+            if sm is not None:
+                sitemap_checks(sm, robots, book, self.origin, self.host, pages[0][1].url)
+            page_set_checks(pages, book, self.host)
+            self.facts = site_facts(pages, robots, sm, self.start.startswith("https:"))
             await self._brand_search(pages[0][1], book)
             real = [f for f in book.items if f.severity != "info"]
             h.log(f"Content: done. {_plural(len(book.items), 'finding')}. Sending them to Nova.", "good", "finance", "nova", state="success", task="Done")
@@ -378,7 +413,7 @@ async def _site(hub: Hub, url_text: str, svc: AssessServices, budget: Budget) ->
     return AssessReport(
         kind="site", target=host, generatedAt=_now(), stats=run.stats, agents=agents, findings=findings, strengths=list(dict.fromkeys(strengths)),
         questions=questions, improvements=improvements, search=run.search_info, model=used, backup=backup,
-        runLog=[LogLine.model_validate(line) for line in hub.trail], disclaimers=SITE_DISCLAIMERS,
+        runLog=[LogLine.model_validate(line) for line in hub.trail], disclaimers=SITE_DISCLAIMERS, facts=run.facts,
     )
 
 
